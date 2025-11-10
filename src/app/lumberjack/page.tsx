@@ -1,13 +1,12 @@
 "use client";
 
-import LumberjackGame from "@/src/components/LumberjackGame"; // use relative path to components
+import LumberjackGame from "@/src/components/LumberjackGame/index"; // use relative path to components
 
 export default function LumberjackPage() {
-  // The main page is now a client component, which is needed for the game logic.
+  // The main page uses a flex layout to ensure consistent sizing
   return (
-    <main className="flex min-h-screen items-center justify-center p-4 bg-black">
-      {/* The game component handles its own layout/styling */}
+    <div className="flex flex-col min-h-screen bg-black">
       <LumberjackGame />
-    </main>
+    </div>
   );
 }
