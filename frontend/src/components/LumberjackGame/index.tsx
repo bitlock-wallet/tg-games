@@ -9,8 +9,12 @@ import { useGameTimer } from "./hooks/useGameTimer";
 import { useResponsiveBranches } from "./hooks/useResponsiveBranches";
 import { Playfield } from "./components/Playfield";
 import { ControlButtons } from "./components/ControlButtons";
+import { useTelegram } from "../TelegramProvider";
 
 export default function LumberjackGame() {
+  const { initData, user, sendScore } = useTelegram();
+  const scoreSentRef = useRef(false);
+
   const {
     segments,
     playerSide,
@@ -44,9 +48,27 @@ export default function LumberjackGame() {
   // Wrapper to start the game and reset the timer. Pass forceNew=true to regenerate the tree (replay).
   const doStart = (forceNew = false) => {
     start(forceNew);
+    // reset flag so a new score can be sent for the next run
+    scoreSentRef.current = false;
     // reset timer to starting value (3.5 seconds)
     setTimeRemaining(3.5);
   };
+
+  // When the game ends, send the score to the backend once.
+  useEffect(() => {
+    if (!isGameOver) return;
+    if (scoreSentRef.current) return;
+    scoreSentRef.current = true;
+
+    (async () => {
+      try {
+        await sendScore("lumberjack", score);
+      } catch (err) {
+        // don't block UX on leaderboard failures; log for debugging
+        console.error("Failed to submit score", err);
+      }
+    })();
+  }, [isGameOver, score, sendScore]);
 
   const { branchOffsetLeftPx, branchOffsetRightPx, branchTopOffsetPx } = useResponsiveBranches();
 

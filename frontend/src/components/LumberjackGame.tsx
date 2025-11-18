@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { useTelegram } from "./TelegramProvider";
 import LumberjackHeader from "./LumberjackHeader";
 
 type Segment = "trunk" | "branch-left" | "branch-right";
@@ -115,6 +116,7 @@ export default function LumberjackGame() {
   const playfieldRef = useRef<HTMLDivElement | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isChoppingRef = useRef<boolean>(false); // prevent double chop execution
+  const telegram = useTelegram();
 
   // update branch offsets on resize to pick offsetLeft/offsetLeftSm/offsetLeftMd and offsetRight/offsetRightSm/offsetRightMd
   useEffect(() => {
@@ -139,6 +141,43 @@ export default function LumberjackGame() {
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
+
+  // Fetch top 100 leaderboard once on mount
+  useEffect(() => {
+    (async function fetchTop() {
+      try {
+        const resp = await fetch(`/api/lumberjack/leaderboard?limit=100`);
+        if (!resp.ok) {
+          console.warn('Failed to fetch top 100 leaderboard', await resp.text());
+          return;
+        }
+        const json = await resp.json();
+        console.log('Top 100 leaderboard (lumberjack):', json.leaderboard);
+      } catch (e) {
+        console.warn('Error fetching leaderboard', e);
+      }
+    })();
+  }, []);
+
+  // Fetch leaderboard window for Telegram user when available
+  useEffect(() => {
+    if (!telegram.user) return;
+    (async function fetchWindowForUser() {
+      try {
+        const uid = telegram.user?.id ? String(telegram.user.id) : undefined;
+        if (!uid) return;
+        const resp = await fetch(`/api/lumberjack/leaderboard-window?user_id=${encodeURIComponent(uid)}&top=5&before=5&after=5`);
+        if (!resp.ok) {
+          console.warn('Failed to fetch leaderboard window', await resp.text());
+          return;
+        }
+        const json = await resp.json();
+        console.log('Leaderboard window for user', uid, json);
+      } catch (e) {
+        console.warn('Error fetching leaderboard window', e);
+      }
+    })();
+  }, [telegram.user]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
