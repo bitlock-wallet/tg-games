@@ -28,8 +28,13 @@ export function GameHeader({ isRunning, isGameOver, timeRemaining, score, visibl
           />
         </div>
       </div>
-      {/* Score */}
-      <div className={`${RESPONSIVE_CONFIG.ui.score} font-clash font-bold text-white drop-shadow-lg`}>{score}</div>
+      {/* Score with points logo */}
+      <div className="flex items-center justify-center">
+        <div className="text-3xl font-semibold text-white drop-shadow-lg mb-1 text-center truncate pr-0">
+          {score}
+        </div>
+        <img src="/images/tree/points-logo.svg" alt="points" className="ml-3 w-10 h-10" />
+      </div>
       
       {/* Level Notification */}
       {levelNotification !== null && (

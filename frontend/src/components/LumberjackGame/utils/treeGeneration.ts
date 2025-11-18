@@ -1,6 +1,12 @@
 import { Segment } from "../types";
 
 export function generateStack(n: number): Segment[] {
+  // If running on the server during SSR, avoid randomness — render deterministic trunks only.
+  // This prevents hydration mismatches if the generator is invoked during server rendering.
+  if (typeof window === "undefined") {
+    return new Array(n).fill("trunk") as Segment[];
+  }
+
   const arr: Segment[] = [];
   for (let i = 0; i < n; i++) {
     if (i === 0) {

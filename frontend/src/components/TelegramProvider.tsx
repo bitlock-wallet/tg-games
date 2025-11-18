@@ -14,6 +14,8 @@ type TelegramContextType = {
   initDataUnsafe: any | null;
   user: TdUser | null;
   sendScore: (gameId: string, score: number) => Promise<Response>;
+  getLeaderboard: (gameId: string, limit?: number) => Promise<any>;
+  getLeaderboardWindow: (gameId: string, userId?: string | number, top?: number, before?: number, after?: number) => Promise<any>;
 };
 
 const TelegramContext = createContext<TelegramContextType | undefined>(undefined);
@@ -61,18 +63,27 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const sendScore = useCallback(async (gameId: string, score: number) => {
-    if (!initData) {
-      throw new Error("Cannot send score: missing initData from Telegram WebApp");
-    }
+    // For development, allow sending score without initData
+    // if (!initData) {
+    //   throw new Error("Cannot send score: missing initData from Telegram WebApp");
+    // }
 
     const body = {
-      user_id: user?.id ? String(user.id) : undefined,
-      username: user?.username ?? undefined,
+      user_id: user?.id ? String(user.id) : 'test-user',
+      username: user?.username ?? 'TestUser',
       score,
-      initData,
+      initData: initData || 'dummy-init-data', // Use dummy if not available
     };
+    // Debug logging to help with verification issues
+    // debug logging removed
 
-    const res = await fetch(`/api/${encodeURIComponent(gameId)}/submit-score`, {
+    if ((!user || !user.id) || !initData) {
+      // Development warning: when not running inside Telegram WebApp we fall back to test values.
+      console.warn('[TelegramProvider] sendScore: missing Telegram user/initData; submitting as test-user');
+    }
+
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE || '';
+    const res = await fetch(`${apiBase}/api/${encodeURIComponent(gameId)}/submit-score`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -88,8 +99,44 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     return res;
   }, [initData, user]);
 
+  const getLeaderboard = useCallback(async (gameId: string, limit = 10) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE || '';
+    const res = await fetch(`${apiBase}/api/${encodeURIComponent(gameId)}/leaderboard?limit=${limit}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "(no body)");
+      throw new Error(`get-leaderboard failed: ${res.status} ${res.statusText} - ${text}`);
+    }
+
+    return await res.json();
+  }, []);
+
+  const getLeaderboardWindow = useCallback(async (gameId: string, userId?: string | number, top = 5, before = 5, after = 5) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE || '';
+    const q = new URLSearchParams();
+    if (typeof userId !== 'undefined') q.set('user_id', String(userId));
+    q.set('top', String(top));
+    q.set('before', String(before));
+    q.set('after', String(after));
+
+    const res = await fetch(`${apiBase}/api/${encodeURIComponent(gameId)}/leaderboard-window?${q.toString()}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '(no body)');
+      throw new Error(`get-leaderboard-window failed: ${res.status} ${res.statusText} - ${text}`);
+    }
+
+    return await res.json();
+  }, []);
+
   return (
-    <TelegramContext.Provider value={{ initData, initDataUnsafe, user, sendScore }}>
+    <TelegramContext.Provider value={{ initData, initDataUnsafe, user, sendScore, getLeaderboard, getLeaderboardWindow }}>
       {children}
     </TelegramContext.Provider>
   );

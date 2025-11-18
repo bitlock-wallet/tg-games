@@ -1,10 +1,11 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Segment, PlayerSide, BullState, FlyingChunk, FlyingBranch } from "../types";
 import { generateStack, generateNewSegment } from "../utils/treeGeneration";
 import { RESPONSIVE_CONFIG } from "../config";
 
 export function useGameState() {
-  const [segments, setSegments] = useState<Segment[]>(() => generateStack(15));
+  // Initialize with empty segments to avoid SSR/client hydration mismatch caused by random generation.
+  const [segments, setSegments] = useState<Segment[]>([]);
   const [playerSide, setPlayerSide] = useState<PlayerSide>("left");
   const [score, setScore] = useState(0);
   const [isRunning, setIsRunning] = useState(false);

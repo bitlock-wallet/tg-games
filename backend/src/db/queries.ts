@@ -111,13 +111,15 @@ export async function getLeaderboardWindow(gameId: string, userId: string | unde
 }
 
 export async function ensureSchema() {
+  console.log('[DEBUG] Connecting to database to check schema...');
   const client = await pgPool.connect();
   try {
     const check = await client.query("SELECT to_regclass('public.schema_versions') IS NOT NULL AS exists");
     const exists = check.rows && check.rows[0] && check.rows[0].exists === true;
     if (!exists) {
-      // Do NOT attempt to create schema here. Migrations are centralized in wallet-backend.
-      console.warn('Database schema for tg-games not found. Please run centralized migrations in wallet-backend to create game_scores.');
+      console.warn('[WARN] Database schema for tg-games not found. Please run centralized migrations in wallet-backend to create game_scores.');
+    } else {
+      console.log('[DEBUG] Schema exists, proceeding.');
     }
     return exists === true;
   } finally {
