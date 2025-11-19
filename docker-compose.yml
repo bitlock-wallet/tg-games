@@ -1,25 +1,58 @@
-version: '3.8'
+version: "3.8"
 services:
-  backend:
-    build:
-      context: ./backend
-    ports:
-      - "4000:4000"
+  db:
+    image: postgres:15
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL}
-      - BOT_TOKEN=${BOT_TOKEN}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tg_games
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
+
+  migrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrator
+    env_file:
+      - .env
+    environment:
+      - TS_NODE_TRANSPILE_ONLY=true
+      - TS_NODE_COMPILER_OPTIONS={"module":"commonjs"}
+      - DATABASE_URL=${DATABASE_URL:-postgres://postgres:postgres@db:5432/tg_games}
+    depends_on:
+      db:
+        condition: service_healthy
+    # Run with ts-node so programmatic TypeScript migrate can be required
+    command: ["sh", "-c", "node -r ts-node/register ./tools/call_migrate.js"]
+    restart: "no"
+    volumes:
+      - ./drizzle:/usr/src/migrator/drizzle
 
   frontend:
     build:
-      context: ./frontend
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
-      - NODE_ENV=production
-      # If frontend needs to call backend via hostname in compose network, use http://backend:4000
-      - NEXT_PUBLIC_API_BASE=http://backend:4000
+      - DATABASE_URL=${DATABASE_URL:-postgres://postgres:postgres@db:5432/tg_games}
     depends_on:
-      - backend
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_started
     restart: unless-stopped
+
+volumes:
+  db_data:
+    driver: local

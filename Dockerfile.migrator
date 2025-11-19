@@ -1,0 +1,26 @@
+FROM node:20-alpine
+
+WORKDIR /usr/src/migrator
+
+# Disable telemetry
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Enable pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy lockfiles and install full dependency tree (includes dev deps like drizzle-kit and ts-node)
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# Copy tooling and migration config
+COPY tools ./tools
+COPY drizzle.config.ts ./drizzle.config.ts
+COPY drizzle ./drizzle
+COPY sql ./sql
+COPY src ./src
+
+# Generate drizzle.config.json from the ts config (ts-node is installed as a dev dep)
+RUN node -r ts-node/register tools/generate_drizzle_json.js || true
+
+# Run migrator with ts-node registered so we can require TS modules directly
+CMD ["sh", "-c", "node -r ts-node/register ./tools/call_migrate.js"]
