@@ -26,8 +26,10 @@ frontend//out/
 /backend/build
 /dist
 
-# Next.js build output
-.next/
+# Next.js cache
+/.next/
+/.next/cache
+/.next/dev
 
 # misc
 .DS_Store
