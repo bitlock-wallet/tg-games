@@ -2,6 +2,63 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
+// Resolve API base URL at runtime. Behavior:
+// - If `NEXT_PUBLIC_API_BASE` is set, use it.
+// - If `NEXT_PUBLIC_RUNNING_IN_DOCKER` === 'true', prefer localhost (container-local).
+// - Client-side: if page is loaded from `localhost`, the browser runs on the host machine
+//   so reach the containerized backend via `host.docker.internal:3000`.
+// - Otherwise use `window.location.origin` to keep same-origin behavior.
+let cachedApiBase: string | null = null;
+
+async function detectHostDockerInternal(timeoutMs = 500): Promise<boolean> {
+  // Try a fast fetch to host.docker.internal. Use mode 'no-cors' so CORS doesn't block
+  // the promise from resolving on supportive browsers. Network errors (DNS fail / refused)
+  // will still reject the promise.
+  try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    // Use a root path; many apps respond on `/` or will at least accept a TCP connection.
+    await fetch('http://host.docker.internal:3000/', { method: 'GET', mode: 'no-cors', signal: controller.signal, cache: 'no-store' });
+    clearTimeout(id);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function getApiBase(): Promise<string> {
+  if (cachedApiBase) return cachedApiBase;
+
+  if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_API_BASE) {
+    cachedApiBase = process.env.NEXT_PUBLIC_API_BASE;
+    return cachedApiBase;
+  }
+
+  if (typeof window === 'undefined') {
+    // Server-side: default to localhost (best-effort). Cannot probe host.docker.internal here.
+    cachedApiBase = 'http://localhost:3000';
+    return cachedApiBase;
+  }
+
+  const hostname = window.location.hostname;
+  // If the browser is running on localhost, prefer localhost (developer expectation)
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    cachedApiBase = 'http://localhost:3000';
+    return cachedApiBase;
+  }
+
+  // Otherwise, try to detect host.docker.internal quickly and use it if present.
+  const hasHostDocker = await detectHostDockerInternal(500);
+  if (hasHostDocker) {
+    cachedApiBase = 'http://host.docker.internal:3000';
+    return cachedApiBase;
+  }
+
+  // Fallback to same origin
+  cachedApiBase = window.location.origin;
+  return cachedApiBase;
+}
+
 type TdUser = {
   id?: string | number;
   username?: string;
@@ -121,13 +178,22 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       // Fallback: if dynamic import fails (older Next versions), try calling the API endpoint.
       console.warn('[TelegramProvider] server action import failed, falling back to API POST', e);
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE || '';
+      const apiBase = await getApiBase();
       const body = {
         user_id: bodyUserId,
         score,
         initData: initData || 'dummy-init-data',
       };
-      const res = await fetch(`${apiBase}/api/${encodeURIComponent(gameId)}/submit-score`, {
+      // If we can, pass chat_id as query param too to make the scope explicit
+      let submitUrl = `${apiBase}/api/${encodeURIComponent(gameId)}/submit-score`;
+      try {
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const chatId = params.get('chat_id');
+          if (chatId) submitUrl += `?chat_id=${encodeURIComponent(chatId)}`;
+        }
+      } catch (e) {}
+      const res = await fetch(submitUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -153,8 +219,16 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       // ignore
     }
-    const apiBase = process.env.NEXT_PUBLIC_API_BASE || '';
-    const res = await fetch(`${apiBase}/api/${encodeURIComponent(gameId)}/leaderboard?limit=${limit}`, {
+    const apiBase = await getApiBase();
+    let url = `${apiBase}/api/${encodeURIComponent(gameId)}/leaderboard?limit=${limit}`;
+    try {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const chatId = params.get('chat_id');
+        if (chatId) url += `&chat_id=${encodeURIComponent(chatId)}`;
+      }
+    } catch (e) {}
+    const res = await fetch(url, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     });
@@ -178,8 +252,15 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       // ignore
     }
-    const apiBase = process.env.NEXT_PUBLIC_API_BASE || '';
+    const apiBase = await getApiBase();
     const q = new URLSearchParams();
+    try {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const chatId = params.get('chat_id');
+        if (chatId) q.set('chat_id', String(chatId));
+      }
+    } catch (e) {}
     // Resolve user id: prefer explicit argument, then internal Telegram `user` state,
     // then try `initDataUnsafe.user`, then try parsing raw `initData` for a 'user' pair.
     let resolvedUserId: string | undefined = typeof userId !== 'undefined' ? String(userId) : undefined;

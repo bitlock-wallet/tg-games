@@ -128,10 +128,12 @@ export function useGameState() {
         setTimeout(() => setLevelNotification(null), 3000);
       }
       
-      // Time bonus decreases with level: starts at 0.5s, decreases by 0.02s per level
-      // Level 0: 0.5s, Level 1: 0.48s, Level 2: 0.46s, etc down to 0.25s min
-      let timeBonus = Math.max(0.25, 0.5 - (level * 0.02));
-      
+      // Time bonus decreases with level. Adjusted to give players slightly more
+      // time per successful hit while preserving difficulty scaling.
+      // Start at 0.40s, decrease by 0.02s per level, with a lower cap of 0.15s.
+      // Level 0: 0.40s, Level 1: 0.38s, Level 2: 0.36s, ... down to 0.15s min.
+      let timeBonus = Math.max(0.15, 0.4 - (level * 0.02));
+
       setTimeRemaining((t) => Math.min(t + timeBonus, 7));
       return newScore;
     });

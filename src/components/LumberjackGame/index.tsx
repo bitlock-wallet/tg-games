@@ -14,6 +14,7 @@ import { useTelegram } from "../TelegramProvider";
 export default function LumberjackGame() {
   const { initData, user, sendScore } = useTelegram();
   const scoreSentRef = useRef(false);
+  const [scoreSubmitted, setScoreSubmitted] = React.useState(false);
 
   const {
     segments,
@@ -50,8 +51,9 @@ export default function LumberjackGame() {
     start(forceNew);
     // reset flag so a new score can be sent for the next run
     scoreSentRef.current = false;
-    // reset timer to starting value (3.5 seconds)
-    setTimeRemaining(3.5);
+    setScoreSubmitted(false);
+    // reset timer to starting value (2.5 seconds)
+    setTimeRemaining(2.5);
   };
 
   // When the game ends, send the score to the backend once.
@@ -59,13 +61,15 @@ export default function LumberjackGame() {
     if (!isGameOver) return;
     if (scoreSentRef.current) return;
     scoreSentRef.current = true;
-
     (async () => {
       try {
         await sendScore("lumberjack", score);
+        setScoreSubmitted(true);
       } catch (err) {
         // don't block UX on leaderboard failures; log for debugging
         console.error("Failed to submit score", err);
+        // still allow leaderboard to fetch after a short delay as fallback
+        setTimeout(() => setScoreSubmitted(true), 200);
       }
     })();
   }, [isGameOver, score, sendScore]);
@@ -142,9 +146,9 @@ export default function LumberjackGame() {
   return (
     <>
       {/* Header */}
-      <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-6">
+      {/* <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-6">
         <LumberjackHeader title="Lumberjack" onSlippageClick={() => {}} />
-      </div>
+      </div> */}
 
       {/* Game Area with controls directly beneath the playfield */}
       <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6">
@@ -166,6 +170,7 @@ export default function LumberjackGame() {
           score={score}
           levelNotification={levelNotification}
           onPlayfieldClick={handlePlayfieldClick}
+          scoreSubmitted={scoreSubmitted}
         />
 
         {/* Controls are immediately below the playfield */}

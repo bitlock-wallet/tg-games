@@ -65,7 +65,7 @@ async function sendWebAppButtons(chatId) {
     const keyboard = [[{ text: `Play ${g.title}`, url: deepLink }]];
     const payload = {
       chat_id: chatId,
-      text: `Play ${g.title}: open the game.`,
+      text: `Play ${g.title}: Earn BitLock Points.`,
       reply_markup: { inline_keyboard: keyboard }
     };
     return api('sendMessage', payload);
@@ -85,10 +85,16 @@ async function handleMessage(msg) {
 
   console.log('Received message:', chatId, text);
 
-  if (text === '/start' || text === 'start') {
+  // Accept '/start', '/start@BotUser', and '/start <payload>' variants.
+  // Also accept plain 'start' for very simple clients.
+  const startMatch = typeof text === 'string' && text.match(/^\/start(?:@[^\s]+)?(?:\s+(.+))?$/i);
+  if (startMatch) {
+    const payload = startMatch[1] || null;
     try {
+      // If payload exists, user opened deep link with payload; log it and still send buttons.
+      if (payload) console.log('[start_bot] /start payload:', payload);
       await sendWebAppButtons(chatId);
-      console.log('Sent game list to', chatId);
+      console.log('Sent game list to', chatId, 'payload=', payload);
     } catch (err) {
       console.error('Failed to send game list:', err);
     }

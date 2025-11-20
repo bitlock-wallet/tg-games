@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 
 export function useGameTimer(isRunning: boolean, isGameOver: boolean, score: number, setIsGameOver: () => void, setIsRunning: (value: boolean) => void) {
-  const [timeRemaining, setTimeRemaining] = useState(3.5);
+  // Start with a shorter base time so the drain feels faster.
+  const [timeRemaining, setTimeRemaining] = useState(2.5);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
-  const startingTimeRef = useRef<number>(3.5);
+  const startingTimeRef = useRef<number>(2.5);
 
   useEffect(() => {
     if (isRunning && !isGameOver) {
@@ -16,8 +17,9 @@ export function useGameTimer(isRunning: boolean, isGameOver: boolean, score: num
       timerIntervalRef.current = setInterval(() => {
         const elapsedRealSeconds = (Date.now() - startTimeRef.current) / 1000;
 
-        const levelMultiplier = 1 + (level * 0.15);
-        const drainRate = 1 * levelMultiplier;
+        // Drain faster: base drain 1.5s per real second, and increase with level.
+        const levelMultiplier = 1 + (level * 0.2);
+        const drainRate = 1.5 * levelMultiplier;
         const newTime = startingTimeRef.current - (elapsedRealSeconds * drainRate);
         
         if (newTime <= 0) {

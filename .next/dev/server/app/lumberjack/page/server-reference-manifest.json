@@ -1,0 +1,20 @@
+{
+  "node": {
+    "78c5852c71554d8806ed936f92da38cccff9b48395": {
+      "workers": {
+        "app/lumberjack/page": {
+          "moduleId": "[project]/.next-internal/server/app/lumberjack/page/actions.js { ACTIONS_MODULE0 => \"[project]/src/app/actions/upsertUserAndScore.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "upsertUserAndScoreAction",
+          "filename": "src/app/actions/upsertUserAndScore.ts"
+        }
+      },
+      "layer": {
+        "app/lumberjack/page": "action-browser"
+      },
+      "exportedName": "upsertUserAndScoreAction",
+      "filename": "src/app/actions/upsertUserAndScore.ts"
+    }
+  },
+  "edge": {}
+}

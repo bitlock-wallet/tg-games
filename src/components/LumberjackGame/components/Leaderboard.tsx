@@ -12,9 +12,10 @@ interface LeaderboardProps {
   visible: boolean;
   isGameOver: boolean;
   currentScore: number;
+  scoreSubmitted?: boolean;
 }
 
-export function Leaderboard({ visible, isGameOver, currentScore }: LeaderboardProps) {
+export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted }: LeaderboardProps) {
   const [mounted, setMounted] = useState(false);
   const { getLeaderboardWindow, user } = useTelegram();
 
@@ -25,9 +26,14 @@ export function Leaderboard({ visible, isGameOver, currentScore }: LeaderboardPr
 
   useEffect(() => setMounted(true), []);
 
-  // fetch leaderboard window from server when visible
+  // fetch leaderboard window from server when visible.
+  // Special-case: if the leaderboard is visible because the game just ended (isGameOver)
+  // and the parent passed `scoreSubmitted` which is still false, wait for the submission
+  // to complete to avoid the race. Otherwise fetch immediately (e.g. first-open).
   useEffect(() => {
     if (!visible) return;
+    if (isGameOver && typeof scoreSubmitted !== 'undefined' && !scoreSubmitted) return;
+
     let cancelled = false;
     (async () => {
       try {
@@ -52,7 +58,7 @@ export function Leaderboard({ visible, isGameOver, currentScore }: LeaderboardPr
       }
     })();
     return () => { cancelled = true; };
-  }, [visible, getLeaderboardWindow, user?.id]);
+  }, [visible, isGameOver, scoreSubmitted, getLeaderboardWindow, user?.id]);
 
   if (!mounted) return null;
   if (!visible) return null;
@@ -74,14 +80,14 @@ export function Leaderboard({ visible, isGameOver, currentScore }: LeaderboardPr
     <div className="absolute inset-0 z-80 flex items-center justify-center pointer-events-auto">
       <div className="bg-transparent backdrop-blur-sm rounded-xl p-6 w-[320px] sm:w-[420px] lg:w-[520px] text-white">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Leaderboard</h3>
-          <div className="text-sm text-white/80">Top 5</div>
+          <h3 className="text-lg font-clash font-semibold">Leaderboard</h3>
+          <div className="text-sm text-white/80 font-clash">Top 5</div>
         </div>
 
         {/* name input removed as requested */}
 
         <div className="space-y-2">
-          {top.length === 0 && <div className="text-sm text-white/70">No scores yet — be the first!</div>}
+          {top.length === 0 && <div className="text-sm text-white/70 font-clash">No scores yet — be the first!</div>}
             {top.map((e, i) => {
               const pos = i + 1;
               const posColor = pos === 1 ? '#FFD700' : pos === 2 ? '#C0C0C0' : pos === 3 ? '#CD7F32' : '#00FFE5';
@@ -92,9 +98,9 @@ export function Leaderboard({ visible, isGameOver, currentScore }: LeaderboardPr
                   className="flex items-center justify-between w-full h-[34px] rounded-[12px] opacity-100 border-b border-white/10 p-[6px] bg-[color:var(--color-black-2)]"
                   style={{ transform: 'rotate(0deg)', background: isCurrent ? 'color-mix(in srgb, var(--color-black-2) 85%, white 15%)' : undefined }}
                 >
-                  <div className="flex items-center font-medium text-sm truncate pl-[10px] py-[10px]">
+                  <div className="flex items-center font-clash font-medium text-sm truncate pl-[10px] py-[10px]">
                     <div style={{ width: '20px', textAlign: 'center', marginRight: '8px', fontWeight: 700, color: posColor }}>{pos}</div>
-                    <div className="truncate">{e.name}</div>
+                    <div className="truncate font-clash">{e.name}</div>
                   </div>
 
                   <div
@@ -141,7 +147,7 @@ export function Leaderboard({ visible, isGameOver, currentScore }: LeaderboardPr
                       className="flex items-center justify-between w-full h-[34px] rounded-[12px] opacity-100 border-b border-white/10 p-[6px] bg-[color:var(--color-black-2)]"
                       style={{ transform: 'rotate(0deg)', background: isCurrent ? 'color-mix(in srgb, var(--color-black-2) 85%, white 15%)' : undefined }}
                     >
-                      <div className="flex items-center font-medium text-sm truncate pl-[10px] py-[10px]">
+                      <div className="flex items-center font-clash font-medium text-sm truncate pl-[10px] py-[10px]">
                         <div style={{ width: '20px', textAlign: 'center', marginRight: '8px', fontWeight: 700, color: posColor }}>{pos}</div>
                         <div className="truncate">{e.name}</div>
                       </div>
@@ -163,7 +169,7 @@ export function Leaderboard({ visible, isGameOver, currentScore }: LeaderboardPr
                           transform: 'rotate(0deg)'
                         }}
                       >
-                        <span style={{ color: '#000', fontWeight: 700, fontSize: '0.875rem' }}>{e.score}</span>
+                        <span className="font-clash" style={{ color: '#000', fontWeight: 700, fontSize: '0.875rem' }}>{e.score}</span>
                         <img
                           src="/images/tree/points-logo-black.svg"
                           alt="points"
@@ -181,8 +187,8 @@ export function Leaderboard({ visible, isGameOver, currentScore }: LeaderboardPr
         {/* show current score prominently when game over */}
         {isGameOver && (
           <div className="mt-4 text-center">
-            <div className="text-sm text-white/80">Your score</div>
-            <div className="text-2xl font-bold mt-1">{currentScore}</div>
+            <div className="text-sm text-white/80 font-clash">Your score</div>
+            <div className="text-2xl font-clash font-bold mt-1">{currentScore}</div>
           </div>
         )}
       </div>

@@ -46,10 +46,23 @@ services:
       - .env
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgres://postgres:postgres@db:5432/tg_games}
+      
     depends_on:
       db:
         condition: service_healthy
       migrator:
+        condition: service_started
+    restart: unless-stopped
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    command: ["sh", "-c", "node ./tools/start_bot.js \"$BOT_TOKEN\" \"$BASE_WEBAPP_URL\""]
+    depends_on:
+      frontend:
         condition: service_started
     restart: unless-stopped
 

@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 18, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/edine/OneDrive/Documents/BitLock-AI/tg-games/src/app/page.tsx"],"sourcesContent":["import { redirect } from 'next/navigation';\n\n/**\n * This component is the root path (/) and immediately redirects \n * the user to the dedicated game page.\n */\nexport default function HomeRedirect() {\n  // Use the Next.js redirect function to move the user to the desired route.\n  redirect('/lumberjack');\n}"],"names":[],"mappings":";;;;AAAA;AAAA;;AAMe,SAAS;IACtB,2EAA2E;IAC3E,IAAA,gTAAQ,EAAC;AACX","debugId":null}}]
+}
