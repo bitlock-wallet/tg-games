@@ -55,7 +55,7 @@ export function Playfield({
     <div
       ref={playfieldRef}
       onClick={onPlayfieldClick}
-      className="relative w-full rounded-xl overflow-hidden cursor-pointer shadow-lg border border-white/5 bg-transparent h-[48vh] max-h-[520px]"
+      className="relative w-full rounded-xl overflow-hidden cursor-pointer shadow-lg border border-white/5 bg-transparent min-h-[520px] sm:min-h-[560px] max-h-[85vh]"
     >
       {/* When leaderboard is visible (before start or after game over) hide header/overlay */}
       {(() => {

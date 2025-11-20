@@ -8,7 +8,10 @@ export function useGameTimer(isRunning: boolean, isGameOver: boolean, score: num
   const startingTimeRef = useRef<number>(2.5);
 
   useEffect(() => {
-    if (isRunning && !isGameOver) {
+    // Start the countdown only when the player has started the run AND has scored at least
+    // one point (first hit). This prevents the timer from draining while the player is
+    // still preparing to play.
+    if (isRunning && !isGameOver && score > 0) {
       // Calculate level based on score (every 20 points = 1 level)
       const level = Math.floor(score / 20);
       startTimeRef.current = Date.now();

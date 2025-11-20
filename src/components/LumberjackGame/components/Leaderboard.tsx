@@ -40,18 +40,45 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted 
         const data = await getLeaderboardWindow('lumberjack', user?.id ? String(user.id) : undefined, 5, 5, 5);
         if (cancelled) return;
         if (data) {
-          console.log('[Leaderboard] fetched data from server:', data);
+          // console.log('[Leaderboard] fetched data from server:', data);
           const mapRow = (r: any) => ({
             name: r.username ?? r.name ?? 'Unknown',
             score: r.high_score ?? r.score ?? 0,
-            rn: typeof r.rn === 'number' ? r.rn : undefined,
+            rn: r.rn !== undefined && r.rn !== null && !Number.isNaN(Number(r.rn)) ? Number(r.rn) : undefined,
             userId: r.user_id !== undefined && r.user_id !== null ? String(r.user_id) : undefined,
           } as Entry);
 
           if (Array.isArray(data.top)) setServerTop(data.top.map(mapRow));
           if (Array.isArray(data.window)) setServerWindow(data.window.map(mapRow));
-          if (typeof data.total === 'number') setServerTotal(data.total);
-          if (typeof data.rank === 'number') setServerRank(data.rank);
+                    // If the server says the player is outside top and the returned `window`
+                    // does not include the player's row, fetch a tight window (before=0, after=0)
+                    // to retrieve just the user's row so we can render it as the 6th row.
+                    try {
+                      const curUserId = user?.id ? String(user.id) : undefined;
+                      const topLen = Array.isArray(data.top) ? data.top.length : 0;
+                      const rankNum = data.rank !== undefined && data.rank !== null && !Number.isNaN(Number(data.rank)) ? Number(data.rank) : undefined;
+                      if (typeof rankNum === 'number' && rankNum > topLen && curUserId) {
+                        const containsUser = (Array.isArray(data.window) && data.window.some((r: any) => String(r.user_id) === curUserId));
+                        if (!containsUser) {
+                          const tight = await getLeaderboardWindow('lumberjack', curUserId, 5, 0, 0);
+                          if (tight && Array.isArray(tight.window) && tight.window.length > 0) {
+                            // Append the tight row (avoid duplicates)
+                            setServerWindow((prev) => {
+                              const ids = new Set(prev.map((r) => String(r.userId)));
+                              const newRows = tight.window
+                                .map((r: any) => mapRow(r))
+                                .filter((r: Entry) => !ids.has(r.userId || ''));
+                              return [...prev, ...newRows];
+                            });
+                          }
+                        }
+                      }
+                    } catch (err) {
+                      // ignore tight fetch errors
+                      console.warn('[Leaderboard] failed to fetch tight user row', err);
+                    }
+          if (data.total !== undefined && data.total !== null && !Number.isNaN(Number(data.total))) setServerTotal(Number(data.total));
+          if (data.rank !== undefined && data.rank !== null && !Number.isNaN(Number(data.rank))) setServerRank(Number(data.rank));
         }
       } catch (e) {
         console.warn('Failed to fetch leaderboard-window from server', e);
@@ -78,7 +105,7 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted 
 
   return (
     <div className="absolute inset-0 z-80 flex items-center justify-center pointer-events-auto">
-      <div className="bg-transparent backdrop-blur-sm rounded-xl p-6 w-[320px] sm:w-[420px] lg:w-[520px] text-white">
+      <div className="bg-transparent backdrop-blur-sm rounded-xl p-6 w-auto min-w-max sm:min-w-[420px] lg:min-w-[520px] text-white h-auto max-w-[96%]">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-clash font-semibold">Leaderboard</h3>
           <div className="text-sm text-white/80 font-clash">Top 5</div>
@@ -133,10 +160,8 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted 
 
           {/* show current player as single 6th row when they're not in top-5 */}
           {youEntry && (
-            <>
-              <div className="h-[10px]" />
-              <div className="space-y-2">
-                {(() => {
+            <div className="mt-1">
+              {(() => {
                   const e = youEntry as Entry;
                   const pos = typeof e.rn === 'number' ? e.rn : 0;
                   const posColor = pos === 1 ? '#FFD700' : pos === 2 ? '#C0C0C0' : pos === 3 ? '#CD7F32' : '#00FFE5';
@@ -180,7 +205,6 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted 
                   );
                 })()}
               </div>
-            </>
           )}
         </div>
 

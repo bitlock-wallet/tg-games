@@ -56,19 +56,39 @@ export async function getLeaderboardWindowAction(gameId: string, userId?: string
     console.log('[getLeaderboardWindowAction] topRows:', topRows);
     if (!userId) return { rank: null, top: topRows, window: [] };
 
-    const rankSql = `
-      SELECT rn FROM (
-        SELECT user_id, ROW_NUMBER() OVER (ORDER BY score DESC, user_id) AS rn
-        FROM game_scores WHERE game_id = $1
-      ) t WHERE user_id = $2
-    `;
-    const rankRes = await client.query(rankSql, [gameId, userId]);
-    if (!rankRes.rows || rankRes.rows.length === 0) return { rank: null, top: topRows, window: [] };
-    const rank = rankRes.rows[0].rn as number;
+    // Efficient rank calculation without scanning/sorting the entire table:
+    // - fetch the user's current score
+    // - rank = 1 + count of rows with a strictly greater score OR equal score but smaller user_id
+    // This uses indexed COUNT queries instead of a full window() over the whole game partition.
+    const userRes = await client.query(
+      `SELECT user_id, username, score FROM game_scores WHERE game_id = $1 AND user_id = $2 LIMIT 1`,
+      [gameId, userId]
+    );
+    if (!userRes.rows || userRes.rows.length === 0) return { rank: null, top: topRows, window: [] };
+    const userRow = userRes.rows[0];
+    const userScore = Number(userRow.score);
 
+    const rankCountRes = await client.query(
+      `SELECT COUNT(*)::int AS cnt FROM game_scores WHERE game_id = $1 AND (score > $2 OR (score = $2 AND user_id < $3))`,
+      [gameId, userScore, userId]
+    );
+    const better = (rankCountRes.rows && rankCountRes.rows[0] && rankCountRes.rows[0].cnt) || 0;
+    const rank = Number(better) + 1;
+
+    // If caller requested a tight single-row window (before=0 && after=0), return only the user's row
+    // with the computed rank. This avoids any window() or OFFSET work.
+    if (before === 0 && after === 0) {
+      const totalRes = await client.query('SELECT COUNT(*)::int AS cnt FROM game_scores WHERE game_id = $1', [gameId]);
+      const total = (totalRes.rows && totalRes.rows[0] && totalRes.rows[0].cnt) || 0;
+      const window = [ { user_id: String(userRow.user_id), username: userRow.username, score: userScore, rn: rank } ];
+      console.log('[getLeaderboardWindowAction] rank/window rows (tight):', { rank, window });
+      return { rank, top: topRows, window, total };
+    }
+
+    // Fallback: for broader windows, use the windowing query. This may scan/order the partition
+    // but it's limited to the requested rn range which will typically be small (before+after).
     const start = Math.max(1, rank - before);
     const end = rank + after;
-
     const windowSql = `
       SELECT user_id, username, score, rn FROM (
         SELECT user_id, username, score, ROW_NUMBER() OVER (ORDER BY score DESC, user_id) AS rn

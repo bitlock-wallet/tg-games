@@ -64,6 +64,9 @@ services:
     depends_on:
       frontend:
         condition: service_started
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     restart: unless-stopped
 
 volumes:

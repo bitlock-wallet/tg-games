@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import scopeGameId from "../lib/scopeGameId";
 
 // Resolve API base URL at runtime. Behavior:
 // - If `NEXT_PUBLIC_API_BASE` is set, use it.
@@ -70,6 +71,7 @@ type TelegramContextType = {
   initData: string | null;
   initDataUnsafe: any | null;
   user: TdUser | null;
+  chatId?: string | null;
   sendScore: (gameId: string, score: number) => Promise<any>;
   getLeaderboard: (gameId: string, limit?: number) => Promise<any>;
   getLeaderboardWindow: (gameId: string, userId?: string | number, top?: number, before?: number, after?: number) => Promise<any>;
@@ -81,6 +83,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
   const [initData, setInitData] = useState<string | null>(null);
   const [initDataUnsafe, setInitDataUnsafe] = useState<any | null>(null);
   const [user, setUser] = useState<TdUser | null>(null);
+  const [chatId, setChatId] = useState<string | null>(null);
 
   useEffect(() => {
     // If Telegram WebApp is available on the window, read initData immediately.
@@ -96,6 +99,43 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
       setInitData(raw);
       setInitDataUnsafe(unsafe);
       if (unsafe && unsafe.user) setUser(unsafe.user);
+
+      // Try to detect chat_id from several sources:
+      // 1. URL search param `chat_id` (private-chat case where we append it explicitly)
+      // 2. initData `start_param` (or variants) when bot deep-link encoded `<gameId>:<chatId>` for groups
+      try {
+        let detected: string | null = null;
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          // Prefer explicit chat_id query param, fall back to chat_instance
+          const s = params.get('chat_id') ?? params.get('chat_instance');
+          if (s) detected = s;
+        }
+        if (!detected && raw) {
+          try {
+            const pairs = new URLSearchParams(raw);
+            const sp = pairs.get('start_param') ?? pairs.get('startapp') ?? pairs.get('start');
+            if (sp) {
+              // support payload format <gameId>:<chatId>
+              const parts = sp.split(':');
+              if (parts.length > 1) detected = parts.slice(1).join(':');
+            }
+          } catch (e) {}
+        }
+        // Also check unsafe init object for start_param if present
+        if (!detected && unsafe && typeof unsafe === 'object') {
+          const possible = unsafe.start_param ?? unsafe.startapp ?? unsafe.start;
+          if (possible && typeof possible === 'string') {
+            const parts = possible.split(':');
+            if (parts.length > 1) detected = parts.slice(1).join(':');
+          }
+          // also accept unsafe.chat_instance as a fallback scoping key
+          if (!detected && unsafe.chat_instance) detected = String(unsafe.chat_instance);
+        }
+        if (detected) setChatId(detected);
+      } catch (e) {
+        // ignore
+      }
       return true;
     };
 
@@ -120,13 +160,14 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const sendScore = useCallback(async (gameId: string, score: number) => {
-    // If the Web App URL includes a chat_id (group context), scope the gameId to that chat
+    // Scope the gameId to the chat when possible. Prefer detected chatId from initData.
     try {
-      if (typeof window !== 'undefined') {
+      let localChat = chatId ?? null;
+      if (!localChat && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
-        const chatId = params.get('chat_id');
-        if (chatId) gameId = `${gameId}:${chatId}`;
+        localChat = params.get('chat_id') ?? params.get('chat_instance');
       }
+      gameId = scopeGameId(gameId, localChat);
     } catch (e) {
       // ignore
     }
@@ -170,10 +211,10 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     // We import dynamically here to avoid bundling server-only code into the client bundle during builds.
     try {
       const mod = await import('../app/actions/upsertUserAndScore');
-      console.log('[TelegramProvider] calling server action upsertUserAndScoreAction', { gameId, bodyUserId, hasInitData: !!initData });
+      // console.log('[TelegramProvider] calling server action upsertUserAndScoreAction', { gameId, bodyUserId, hasInitData: !!initData });
       // Pass `initData` to the server action and let the server parse authoritative user info.
       const result = await mod.upsertUserAndScoreAction(gameId, bodyUserId, score, initData || null);
-      console.log('[TelegramProvider] server action result', result);
+      // console.log('[TelegramProvider] server action result', result);
       return result;
     } catch (e) {
       // Fallback: if dynamic import fails (older Next versions), try calling the API endpoint.
@@ -187,11 +228,12 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
       // If we can, pass chat_id as query param too to make the scope explicit
       let submitUrl = `${apiBase}/api/${encodeURIComponent(gameId)}/submit-score`;
       try {
-        if (typeof window !== 'undefined') {
+        let localChat = chatId ?? null;
+        if (!localChat && typeof window !== 'undefined') {
           const params = new URLSearchParams(window.location.search);
-          const chatId = params.get('chat_id');
-          if (chatId) submitUrl += `?chat_id=${encodeURIComponent(chatId)}`;
+          localChat = params.get('chat_id');
         }
+        if (localChat) submitUrl += `?chat_id=${encodeURIComponent(localChat)}`;
       } catch (e) {}
       const res = await fetch(submitUrl, {
         method: 'POST',
@@ -203,30 +245,36 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
         throw new Error(`submit-score failed: ${res.status} ${res.statusText} - ${text}`);
       }
       const json = await res.json();
-      console.log('[TelegramProvider] fallback API result', json);
+      // console.log('[TelegramProvider] fallback API result', json);
       return json;
     }
   }, [initData, user]);
 
   const getLeaderboard = useCallback(async (gameId: string, limit = 10) => {
-    // If the Web App URL includes a chat_id (group context), scope the gameId to that chat
+    // Scope the gameId to the chat when possible. Prefer detected chatId from initData.
     try {
-      if (typeof window !== 'undefined') {
+      let localChat = chatId ?? null;
+      if (!localChat && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
-        const chatId = params.get('chat_id');
-        if (chatId) gameId = `${gameId}:${chatId}`;
+        localChat = params.get('chat_id') ?? params.get('chat_instance');
       }
+      if (localChat) gameId = scopeGameId(gameId, localChat);
     } catch (e) {
       // ignore
     }
     const apiBase = await getApiBase();
     let url = `${apiBase}/api/${encodeURIComponent(gameId)}/leaderboard?limit=${limit}`;
+    // include initData when present so the server can derive chat scoping if needed
     try {
-      if (typeof window !== 'undefined') {
+      if (initData) url += `&initData=${encodeURIComponent(initData)}`;
+    } catch (e) {}
+    try {
+      let localChat = chatId ?? null;
+      if (!localChat && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
-        const chatId = params.get('chat_id');
-        if (chatId) url += `&chat_id=${encodeURIComponent(chatId)}`;
+        localChat = params.get('chat_id') ?? params.get('chat_instance');
       }
+      if (localChat) url += `&chat_id=${encodeURIComponent(localChat)}`;
     } catch (e) {}
     const res = await fetch(url, {
       method: "GET",
@@ -242,24 +290,26 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const getLeaderboardWindow = useCallback(async (gameId: string, userId?: string | number, top = 5, before = 5, after = 5) => {
-    // If the Web App URL includes a chat_id (group context), scope the gameId to that chat
+    // Scope the gameId to the chat when possible. Prefer detected chatId from initData.
     try {
-      if (typeof window !== 'undefined') {
+      let localChat = chatId ?? null;
+      if (!localChat && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
-        const chatId = params.get('chat_id');
-        if (chatId) gameId = `${gameId}:${chatId}`;
+        localChat = params.get('chat_id') ?? params.get('chat_instance');
       }
+      gameId = scopeGameId(gameId, localChat);
     } catch (e) {
       // ignore
     }
     const apiBase = await getApiBase();
     const q = new URLSearchParams();
     try {
-      if (typeof window !== 'undefined') {
+      let localChat = chatId ?? null;
+      if (!localChat && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
-        const chatId = params.get('chat_id');
-        if (chatId) q.set('chat_id', String(chatId));
+        localChat = params.get('chat_id');
       }
+      if (localChat) q.set('chat_id', String(localChat));
     } catch (e) {}
     // Resolve user id: prefer explicit argument, then internal Telegram `user` state,
     // then try `initDataUnsafe.user`, then try parsing raw `initData` for a 'user' pair.
@@ -289,8 +339,12 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     q.set('before', String(before));
     q.set('after', String(after));
 
+    // include initData when present so the server can derive chat scoping if needed
+    try {
+      if (initData) q.set('initData', String(initData));
+    } catch (e) {}
     const url = `${apiBase}/api/${encodeURIComponent(gameId)}/leaderboard-window?${q.toString()}`;
-    console.log('[TelegramProvider] getLeaderboardWindow URL:', url);
+    // console.log('[TelegramProvider] getLeaderboardWindow URL:', url);
     const res = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -302,12 +356,12 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     }
 
     const json = await res.json();
-    console.log('[TelegramProvider] getLeaderboardWindow response:', json);
+    // console.log('[TelegramProvider] getLeaderboardWindow response:', json);
     return json;
-  }, [initData, initDataUnsafe, user]);
+  }, [initData, initDataUnsafe, user, chatId]);
 
   return (
-    <TelegramContext.Provider value={{ initData, initDataUnsafe, user, sendScore, getLeaderboard, getLeaderboardWindow }}>
+    <TelegramContext.Provider value={{ initData, initDataUnsafe, user, chatId, sendScore, getLeaderboard, getLeaderboardWindow }}>
       {children}
     </TelegramContext.Provider>
   );

@@ -2,7 +2,7 @@
 // Usage: node tools/start_bot.js <BOT_TOKEN> <BASE_WEBAPP_URL>
 // Example: node tools/start_bot.js "123:ABC" "https://concretive-jami-mailable.ngrok-free.dev"
 
-const [,, BOT_TOKEN, BASE_WEBAPP_URL] = process.argv;
+const [, , BOT_TOKEN, BASE_WEBAPP_URL] = process.argv;
 if (!BOT_TOKEN || !BASE_WEBAPP_URL) {
   console.error('Usage: node tools/start_bot.js <BOT_TOKEN> <BASE_WEBAPP_URL>');
   process.exit(1);
@@ -59,8 +59,10 @@ async function sendWebAppButtons(chatId) {
   console.log('[DEBUG] bot username resolved:', { envBotUsername, botUserFromApi, final: botUser });
 
   if (isGroup) {
-    // Deep link: prefer t.me/<bot>/<appShortName>?startapp=<gameId>
-    const deepLink = botUser ? `https://t.me/${botUser}/${appShortName}?startapp=${encodeURIComponent(g.id)}` : webUrl;
+    // Deep link: include chat id in the startapp payload so the web app can know the originating chat.
+    // Format: <gameId>:<chatId>
+    const dlPayload = `${g.id}:${chatId}`;
+    const deepLink = botUser ? `https://t.me/${botUser}/${appShortName}?startapp=${encodeURIComponent(dlPayload)}` : webUrl;
     console.log('[DEBUG] Sending group deepLink:', deepLink);
     const keyboard = [[{ text: `Play ${g.title}`, url: deepLink }]];
     const payload = {
@@ -110,20 +112,39 @@ async function handleMessage(msg) {
 }
 
 async function poll() {
+  let errorCount = 0;
   while (running) {
     try {
-      const res = await fetch(`${API_BASE}/getUpdates?timeout=30${offset ? `&offset=${offset}` : ''}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 40000); // 40s timeout for 30s long poll
+
+      const res = await fetch(`${API_BASE}/getUpdates?timeout=30${offset ? `&offset=${offset}` : ''}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
       const data = await res.json();
       if (data && data.ok && Array.isArray(data.result)) {
+        errorCount = 0; // reset on success
         for (const update of data.result) {
           offset = (update.update_id || 0) + 1;
           if (update.message) handleMessage(update.message);
           // handle callback_query etc in the future
         }
+      } else if (!data.ok) {
+        console.error('Telegram API error:', data);
+        errorCount++;
       }
     } catch (err) {
-      console.error('Polling error:', err);
-      await new Promise(r => setTimeout(r, 3000));
+      errorCount++;
+      console.error(`Polling error (attempt ${errorCount}):`, err.message);
+      if (err.name === 'AbortError') {
+        console.log('Polling request timed out, retrying...');
+      }
+
+      // Exponential backoff: 3s, 6s, 12s... max 30s
+      const delay = Math.min(30000, 3000 * Math.pow(2, Math.min(errorCount, 5)));
+      await new Promise(r => setTimeout(r, delay));
     }
   }
 }

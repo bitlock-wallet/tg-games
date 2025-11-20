@@ -12,7 +12,7 @@ import { ControlButtons } from "./components/ControlButtons";
 import { useTelegram } from "../TelegramProvider";
 
 export default function LumberjackGame() {
-  const { initData, user, sendScore } = useTelegram();
+  const { initData, user, sendScore, chatId } = useTelegram();
   const scoreSentRef = useRef(false);
   const [scoreSubmitted, setScoreSubmitted] = React.useState(false);
 
@@ -73,6 +73,36 @@ export default function LumberjackGame() {
       }
     })();
   }, [isGameOver, score, sendScore]);
+
+  // Announce to group/bot when user closes the game/page. Use sendBeacon when available
+  // so the request survives unload. Only send if there is a meaningful score or game-over.
+  useEffect(() => {
+    const shouldAnnounce = () => isGameOver || (typeof score === 'number' && score > 0);
+    const buildPayload = () => ({ username: user?.username ?? null, userId: user?.id ?? null, score, gameId: chatId ? `lumberjack:${chatId}` : 'lumberjack', chatId: chatId ?? null });
+
+    const onHide = () => {
+      if (!shouldAnnounce()) return;
+      const payload = JSON.stringify(buildPayload());
+      try {
+        if (navigator && (navigator as any).sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          (navigator as any).sendBeacon('/api/announce', blob);
+        } else {
+          // keepalive is supported in many browsers for fetch during unload
+          fetch('/api/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true });
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    window.addEventListener('pagehide', onHide);
+    window.addEventListener('beforeunload', onHide);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('beforeunload', onHide);
+    };
+  }, [isGameOver, score, user?.username, user?.id]);
 
   const { branchOffsetLeftPx, branchOffsetRightPx, branchTopOffsetPx } = useResponsiveBranches();
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getLeaderboardWindowAction } from '../../../actions/score';
+import scopeGameId from '../../../../lib/scopeGameId';
 
 export async function GET(req: any, context: any) {
   try {
@@ -20,8 +21,18 @@ export async function GET(req: any, context: any) {
       gameId = m ? m[1] : undefined;
     }
 
-    const chatId = url.searchParams.get('chat_id');
-    if (chatId && !gameId.endsWith(`:${chatId}`)) gameId = `${gameId}:${chatId}`;
+    let chatId = url.searchParams.get('chat_id') ?? url.searchParams.get('chat_instance');
+    if (!chatId) {
+      const initData = url.searchParams.get('initData');
+      if (initData) {
+        try {
+          const { parseChatKeyFromInitData } = await import('../../../../lib/parseInitChat');
+          const derived = parseChatKeyFromInitData(initData);
+          if (derived) chatId = derived;
+        } catch (e) {}
+      }
+    }
+    gameId = scopeGameId(gameId, chatId);
     console.log('[api/leaderboard-window] GET', { gameId, userId, top, before, after, chatId });
     const result = await getLeaderboardWindowAction(gameId, userId, top, before, after);
     console.log('[api/leaderboard-window] result', result);

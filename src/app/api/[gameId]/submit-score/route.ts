@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { upsertUserAndScoreAction } from '../../../actions/upsertUserAndScore';
+import scopeGameId from '../../../../lib/scopeGameId';
 
 export async function POST(req: any, context: any) {
   try {
@@ -21,10 +22,8 @@ export async function POST(req: any, context: any) {
     // ensures leaderboard and scores are stored per chat even when the frontend
     // calls the API without scoping the `gameId` in the path.
     const url = new URL(req.url);
-    const chatIdParam = url.searchParams.get('chat_id');
-    if (chatIdParam && chatIdParam.length > 0 && !gameId.endsWith(`:${chatIdParam}`)) {
-      gameId = `${gameId}:${chatIdParam}`;
-    }
+    const chatIdParam = url.searchParams.get('chat_id') ?? url.searchParams.get('chat_instance');
+    gameId = scopeGameId(gameId, chatIdParam);
     const score = typeof body.score === 'number' ? body.score : Number(body.score || 0);
     const initData = body.initData ?? null;
 

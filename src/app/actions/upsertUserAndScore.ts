@@ -45,6 +45,23 @@ export async function upsertUserAndScoreAction(
     const finalDisplayName = parsedDisplayName ?? finalUsername;
     console.log('[upsertUserAndScore] resolved user info', { parsedUsername, parsedDisplayName, finalUsername, finalDisplayName });
 
+    // If the incoming gameId is unscoped, try to derive a chat key from initData
+    // so that scores are automatically stored per-chat even when the client
+    // didn't include `chat_id` in query params. Use parseInitChat to support
+    // start_param and chat_instance fallbacks.
+    try {
+      const { parseChatKeyFromInitData } = await import('../../lib/parseInitChat');
+      const derived = parseChatKeyFromInitData(initData ?? null);
+      if (derived && (!gameId || !String(gameId).endsWith(`:${derived}`))) {
+        gameId = `${gameId}:${derived}`;
+        console.log('[upsertUserAndScore] SUCCESS: scoped gameId from initData', { gameId, derivedChatId: derived });
+      } else {
+        console.log('[upsertUserAndScore] info: gameId not scoped or already scoped', { gameId, derived });
+      }
+    } catch (e) {
+      // ignore parsing errors; not critical
+    }
+
     const UPSERT_USER = `
       INSERT INTO users (id, username, display_name)
       VALUES ($1, $2, $3)
