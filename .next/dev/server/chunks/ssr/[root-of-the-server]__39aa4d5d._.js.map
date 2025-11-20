@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 34, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/edine/OneDrive/Documents/BitLock-AI/tg-games/src/db/drizzle.ts"],"sourcesContent":["import dotenv from 'dotenv';\r\nimport pkg from 'pg';\r\nimport { drizzle as drizzleClient } from 'drizzle-orm/node-postgres';\r\n\r\nconst { Pool } = pkg;\r\n\r\ndotenv.config();\r\n\r\nconst connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.PG_CONNECTION || process.env.PG_URI || '';\r\n\r\nconst pool = new Pool({ connectionString: connectionString || undefined });\r\n\r\nexport const db = drizzleClient(pool);\r\nexport const pgPool = pool;\r\n\r\nexport async function closePool() {\r\n  await pool.end();\r\n}\r\n"],"names":[],"mappings":";;;;;;;;AAAA;AACA;AACA;;;;;;;;;AAEA,MAAM,EAAE,IAAI,EAAE,GAAG,+GAAG;AAEpB,oMAAM,CAAC,MAAM;AAEb,MAAM,mBAAmB,QAAQ,GAAG,CAAC,YAAY,IAAI,QAAQ,GAAG,CAAC,YAAY,IAAI,QAAQ,GAAG,CAAC,aAAa,IAAI,QAAQ,GAAG,CAAC,MAAM,IAAI;AAEpI,MAAM,OAAO,IAAI,KAAK;IAAE,kBAAkB,oBAAoB;AAAU;AAEjE,MAAM,KAAK,IAAA,sRAAa,EAAC;AACzB,MAAM,SAAS;AAEf,eAAe;IACpB,MAAM,KAAK,GAAG;AAChB","debugId":null}}]
-}
