@@ -27,6 +27,7 @@ interface PlayfieldProps {
   timeRemaining: number;
   score: number;
   levelNotification?: number | null;
+  multiplier?: number | string;
   onPlayfieldClick: (e: React.MouseEvent<HTMLDivElement>) => void;
   scoreSubmitted?: boolean;
 }
@@ -48,6 +49,7 @@ export function Playfield({
   timeRemaining,
   score,
   levelNotification,
+  multiplier,
   onPlayfieldClick,
   scoreSubmitted,
 }: PlayfieldProps) {
@@ -62,8 +64,8 @@ export function Playfield({
         const leaderboardVisible = !isRunning || isGameOver;
         return (
           <>
-            <GameHeader isRunning={isRunning} isGameOver={isGameOver} timeRemaining={timeRemaining} score={score} visible={!leaderboardVisible} levelNotification={levelNotification} />
-            <Leaderboard visible={leaderboardVisible} isGameOver={isGameOver} currentScore={score} scoreSubmitted={scoreSubmitted} />
+            <GameHeader isRunning={isRunning} isGameOver={isGameOver} timeRemaining={timeRemaining} score={score} visible={!leaderboardVisible} levelNotification={levelNotification} multiplier={multiplier} />
+            <Leaderboard visible={leaderboardVisible} isGameOver={isGameOver} currentScore={score} scoreSubmitted={scoreSubmitted} multiplier={multiplier} />
             {!leaderboardVisible && <GameOverlay isGameOver={isGameOver} />}
           </>
         );

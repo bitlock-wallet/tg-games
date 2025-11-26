@@ -32,16 +32,6 @@ export function DecorativeElements() {
         />
       </div>
 
-      {/* Promo table to the right of the island */}
-      <div className={`absolute ${RESPONSIVE_CONFIG.decoration.positions.promo} pointer-events-none z-15`}>
-        <img
-          src="/images/tree/promo-table.svg"
-          alt="Promo table"
-          className={`${RESPONSIVE_CONFIG.decoration.promoTable} h-auto select-none`}
-          draggable={false}
-        />
-      </div>
-
       {/* Bush */}
       <div className={`absolute ${RESPONSIVE_CONFIG.decoration.positions.bush} flex justify-center pointer-events-none`} style={{ zIndex: 50 }}>
         <img

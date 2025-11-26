@@ -15,7 +15,9 @@ export function Branches({ visibleSegments, patternOffset, branchOffsetLeftPx, b
   return (
     <div className={`absolute bottom-0 left-1/2 transform -translate-x-1/2 flex flex-col-reverse items-center pointer-events-none ${RESPONSIVE_CONFIG.trunk.width} h-full`}>
       {visibleSegments.map((seg, idx) => {
-        const segmentBottomOffset = idx * RESPONSIVE_CONFIG.segment.heightPx + (patternOffset % RESPONSIVE_CONFIG.segment.heightPx);
+        const segGap = RESPONSIVE_CONFIG.segment.gapPx || 0;
+        const segmentTotal = RESPONSIVE_CONFIG.segment.heightPx + segGap;
+        const segmentBottomOffset = idx * segmentTotal + (patternOffset % segmentTotal);
         return (
           <div
             key={idx}

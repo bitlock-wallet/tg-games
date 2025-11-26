@@ -11,11 +11,13 @@ export const RESPONSIVE_CONFIG = {
     heightSmPx: 80,
     heightMdPx: 100,
     maxVisible: 6,
+    gapPx: 0,
   },
   pattern: {
     heightPx: 400,
     heightSmPx: 500,
     heightMdPx: 800,
+    gapPx: 20,
   },
   bull: {
     container: "w-[200px] sm:w-[240px] md:w-[280px] h-[80px] sm:h-[100px] md:h-[120px]",

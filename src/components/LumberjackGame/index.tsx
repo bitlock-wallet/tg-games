@@ -12,7 +12,7 @@ import { ControlButtons } from "./components/ControlButtons";
 import { useTelegram } from "../TelegramProvider";
 
 export default function LumberjackGame() {
-  const { initData, user, sendScore, chatId } = useTelegram();
+  const { initData, user, sendScore, chatId, getMultiplier } = useTelegram();
   const scoreSentRef = useRef(false);
   const [scoreSubmitted, setScoreSubmitted] = React.useState(false);
 
@@ -36,7 +36,11 @@ export default function LumberjackGame() {
     setIsRunning,
     start,
     handleChop,
+    multiplier,
+    setMultiplier,
   } = useGameState();
+
+  // multiplier is fetched when the leaderboard is visible (see effect below)
 
   const { timeRemaining, setTimeRemaining } = useGameTimer(
     isRunning,
@@ -78,7 +82,7 @@ export default function LumberjackGame() {
   // so the request survives unload. Only send if there is a meaningful score or game-over.
   useEffect(() => {
     const shouldAnnounce = () => isGameOver || (typeof score === 'number' && score > 0);
-    const buildPayload = () => ({ username: user?.username ?? null, userId: user?.id ?? null, score, gameId: chatId ? `lumberjack:${chatId}` : 'lumberjack', chatId: chatId ?? null });
+    const buildPayload = () => ({ userId: user?.id ?? null, score, gameId: chatId ? `lumberjack:${chatId}` : 'lumberjack', chatId: chatId ?? null });
 
     const onHide = () => {
       if (!shouldAnnounce()) return;
@@ -102,7 +106,7 @@ export default function LumberjackGame() {
       window.removeEventListener('pagehide', onHide);
       window.removeEventListener('beforeunload', onHide);
     };
-  }, [isGameOver, score, user?.username, user?.id]);
+  }, [isGameOver, score, user?.id]);
 
   const { branchOffsetLeftPx, branchOffsetRightPx, branchTopOffsetPx } = useResponsiveBranches();
 
@@ -173,6 +177,27 @@ export default function LumberjackGame() {
 
   const visibleSegments = segments.slice(0, RESPONSIVE_CONFIG.segment.maxVisible);
 
+  // Fetch multiplier when the leaderboard becomes visible (i.e. before a run)
+  const leaderboardVisible = !isRunning || isGameOver;
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!leaderboardVisible) return;
+      try {
+        if (!getMultiplier) return;
+        // Browser console log so you can see the attempt
+        try { console.log('[LumberjackGame] fetching multiplier for user', user?.id); } catch (_) {}
+        const res = await getMultiplier(user?.id);
+        try { console.log('[LumberjackGame] getMultiplier result', res); } catch (_) {}
+        if (!mounted) return;
+        if (res && typeof res.multiplier === 'number') setMultiplier(res.multiplier);
+      } catch (err) {
+        console.warn('[LumberjackGame] failed to fetch multiplier when leaderboard visible', err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [leaderboardVisible, user?.id, getMultiplier, setMultiplier]);
+
   return (
     <>
       {/* Header */}
@@ -197,6 +222,7 @@ export default function LumberjackGame() {
           branchOffsetRightPx={branchOffsetRightPx}
           branchTopOffsetPx={branchTopOffsetPx}
           timeRemaining={timeRemaining}
+          multiplier={multiplier}
           score={score}
           levelNotification={levelNotification}
           onPlayfieldClick={handlePlayfieldClick}

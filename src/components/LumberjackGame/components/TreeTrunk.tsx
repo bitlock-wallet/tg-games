@@ -30,16 +30,21 @@ export function TreeTrunk({ patternOffset }: TreeTrunkProps) {
             transform: `translateY(${patternOffset % RESPONSIVE_CONFIG.pattern.heightPx}px)`
           }}
         >
-              {Array.from({ length: Math.ceil((RESPONSIVE_CONFIG.segment.maxVisible * RESPONSIVE_CONFIG.segment.heightPx + patternOffset) / RESPONSIVE_CONFIG.pattern.heightPx) + 3 }).map((_, i) => (
+              {(() => {
+                const segGap = RESPONSIVE_CONFIG.segment.gapPx || 0;
+                const segmentTotal = RESPONSIVE_CONFIG.segment.heightPx + segGap;
+                const count = Math.ceil((RESPONSIVE_CONFIG.segment.maxVisible * segmentTotal + patternOffset) / RESPONSIVE_CONFIG.pattern.heightPx) + 3;
+                return Array.from({ length: count }).map((_, i) => (
             <img
               key={i}
               src={IMAGE_PATHS.trunkPattern}
               alt="trunk pattern"
               className="w-full block"
-              style={{ height: `${RESPONSIVE_CONFIG.pattern.heightPx}px` }}
+              style={{ height: `${RESPONSIVE_CONFIG.pattern.heightPx}px`, marginBottom: `${RESPONSIVE_CONFIG.pattern.gapPx}px` }}
               draggable={false}
             />
-          ))}
+                ));
+              })()}
         </div>
       </div>
     </>

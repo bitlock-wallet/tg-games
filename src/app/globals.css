@@ -193,7 +193,7 @@
     --card-foreground: 0 0% 98%;
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
-    --primary: 82, 100%, 61%;
+    --primary: 174, 100%, 50%;
     --primary-foreground: 0 0% 0%;
     --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;
@@ -216,8 +216,8 @@
     --utility-green: 137, 60%, 58%;
     --utility-red: 0, 85%, 56%;
     --utility-yellow: 32, 95%, 57%;
-    --gradient-green-top: 82, 100%, 61%;
-    --gradient-green-bottom: 82, 100%, 42%;
+    --gradient-green-top: 174, 100%, 50%;
+    --gradient-green-bottom: 174, 100%, 42%;
     --tg-bg-color: #000000;
     --tg-header-color: #000000;
   }
@@ -257,8 +257,8 @@
     --utility-green: 137, 60%, 58%;
     --utility-red: 0, 85%, 56%;
     --utility-yellow: 32, 95%, 57%;
-    --gradient-green-top: 82, 100%, 61%;
-    --gradient-green-bottom: 82, 100%, 42%;
+    --gradient-green-top: 174, 100%, 50%;
+    --gradient-green-bottom: 174, 100%, 42%;
     --tg-bg-color: #000000;
     --tg-header-color: #000000;
   }

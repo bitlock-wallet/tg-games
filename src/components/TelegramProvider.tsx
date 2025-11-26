@@ -75,6 +75,7 @@ type TelegramContextType = {
   sendScore: (gameId: string, score: number) => Promise<any>;
   getLeaderboard: (gameId: string, limit?: number) => Promise<any>;
   getLeaderboardWindow: (gameId: string, userId?: string | number, top?: number, before?: number, after?: number) => Promise<any>;
+  getMultiplier?: (userId?: string | number) => Promise<{ volume: number; multiplier: number }>;
 };
 
 const TelegramContext = createContext<TelegramContextType | undefined>(undefined);
@@ -360,8 +361,56 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     return json;
   }, [initData, initDataUnsafe, user, chatId]);
 
+  const getMultiplier = useCallback(async (userId?: string | number) : Promise<{ volume: number; multiplier: number }> => {
+    // Resolve user id similarly to other helper methods
+    let resolvedUserId: string | undefined = typeof userId !== 'undefined' ? String(userId) : undefined;
+    try {
+      if (!resolvedUserId) {
+        if (user && user.id) resolvedUserId = String(user.id);
+        else if (initDataUnsafe && initDataUnsafe.user && initDataUnsafe.user.id) resolvedUserId = String(initDataUnsafe.user.id);
+        else if (initData) {
+          const pairs = new URLSearchParams(initData);
+          const u = pairs.get('user');
+            if (u) {
+            try {
+              const parsed = JSON.parse(decodeURIComponent(u));
+              if (parsed && parsed.id) resolvedUserId = String(parsed.id);
+            } catch (e) {
+              // ignore
+            }
+          }
+        }
+      }
+      // intentionally do not resolve username; we only send Telegram id to the API
+    } catch (e) {
+      // ignore
+    }
+
+    // Try server action first via dynamic import
+    // Always call the API route from the client. Server action must run server-side.
+    try {
+      const apiBase = await getApiBase();
+      const q = new URLSearchParams();
+      if (resolvedUserId) q.set('user_id', String(resolvedUserId));
+      const qs = q.toString();
+      const url = qs ? `${apiBase}/api/get-multiplier?${qs}` : `${apiBase}/api/get-multiplier`;
+      console.log('[TelegramProvider] calling API route', url);
+      const res = await fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+      if (!res.ok) {
+        console.warn('[TelegramProvider] API route returned non-ok', res.status, await res.text().catch(() => '(no body)'));
+        return { volume: 0, multiplier: 1 };
+      }
+      const json = await res.json();
+      console.log('[TelegramProvider] API route result', json);
+      return { volume: Number(json.volume ?? 0), multiplier: Number(json.multiplier ?? 1) };
+    } catch (e2) {
+      console.warn('[TelegramProvider] API route fetch failed', e2);
+      return { volume: 0, multiplier: 1 };
+    }
+  }, [initData, initDataUnsafe, user]);
+
   return (
-    <TelegramContext.Provider value={{ initData, initDataUnsafe, user, chatId, sendScore, getLeaderboard, getLeaderboardWindow }}>
+    <TelegramContext.Provider value={{ initData, initDataUnsafe, user, chatId, sendScore, getLeaderboard, getLeaderboardWindow, getMultiplier }}>
       {children}
     </TelegramContext.Provider>
   );

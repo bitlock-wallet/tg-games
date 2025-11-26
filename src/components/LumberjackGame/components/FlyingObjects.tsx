@@ -26,7 +26,9 @@ export function FlyingObjects({ flyingChunks, flyingBranches, patternOffset }: F
             ? `translate(${distance}px, ${-distance * 0.3}px) rotate(${rotation}deg)`
             : `translate(${-distance}px, ${-distance * 0.3}px) rotate(${-rotation}deg)`;
 
-        const startingBottom = patternOffset % RESPONSIVE_CONFIG.segment.heightPx + 50;
+        const segGap = RESPONSIVE_CONFIG.segment.gapPx || 0;
+        const segmentTotal = RESPONSIVE_CONFIG.segment.heightPx + segGap;
+        const startingBottom = patternOffset % segmentTotal + 50;
 
         return (
           <div
@@ -66,7 +68,9 @@ export function FlyingObjects({ flyingChunks, flyingBranches, patternOffset }: F
           ? `translate(${distance}px, ${-distance * 0.4}px) rotate(${rotation}deg)`
           : `translate(${distance}px, ${-distance * 0.4}px) rotate(${rotation}deg)`;
 
-        const startingBottom = patternOffset % RESPONSIVE_CONFIG.segment.heightPx;
+        const segGap2 = RESPONSIVE_CONFIG.segment.gapPx || 0;
+        const segmentTotal2 = RESPONSIVE_CONFIG.segment.heightPx + segGap2;
+        const startingBottom = patternOffset % segmentTotal2;
 
         return (
           <div

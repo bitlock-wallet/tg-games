@@ -8,6 +8,7 @@ export function useGameState() {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [playerSide, setPlayerSide] = useState<PlayerSide>("left");
   const [score, setScore] = useState(0);
+  const [multiplier, setMultiplier] = useState<number>(1);
   const [isRunning, setIsRunning] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
   const [flyingChunks, setFlyingChunks] = useState<FlyingChunk[]>([]);
@@ -105,7 +106,9 @@ export function useGameState() {
       const newArr = prev.slice(1);
       pushFlyingChunk(bottom, side, branchOffsetLeftPx, branchOffsetRightPx, branchTopOffsetPx);
       
-      setPatternOffset((offset) => offset + RESPONSIVE_CONFIG.segment.heightPx / 2);
+      const segGap = RESPONSIVE_CONFIG.segment.gapPx || 0;
+      const segmentTotal = RESPONSIVE_CONFIG.segment.heightPx + segGap;
+      setPatternOffset((offset) => offset + segmentTotal / 2);
 
       if (newArr.length < 12) {
         const add = generateNewSegment(newArr);
@@ -117,7 +120,8 @@ export function useGameState() {
 
     // Update score outside of setSegments to prevent double increment
     setScore((s) => {
-      const newScore = s + 1;
+      const add = typeof multiplier === 'number' && Number.isFinite(multiplier) ? multiplier : 1;
+      const newScore = s + add;
       // Calculate level based on score (every 20 points = 1 level)
       const level = Math.floor(newScore / 20);
       
@@ -163,5 +167,7 @@ export function useGameState() {
     setPatternOffset,
     start,
     handleChop,
+    multiplier,
+    setMultiplier,
   };
 }

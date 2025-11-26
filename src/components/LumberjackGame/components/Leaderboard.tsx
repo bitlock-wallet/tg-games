@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTelegram } from "../../TelegramProvider";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../../../components/ui/dialog";
+import { Button } from "../../../components/ui/button";
 
 interface Entry {
   name: string;
@@ -13,10 +15,12 @@ interface LeaderboardProps {
   isGameOver: boolean;
   currentScore: number;
   scoreSubmitted?: boolean;
+  multiplier?: number | string;
 }
 
-export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted }: LeaderboardProps) {
+export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted, multiplier = 1 }: LeaderboardProps) {
   const [mounted, setMounted] = useState(false);
+  const [showMultiplierInfo, setShowMultiplierInfo] = useState(false);
   const { getLeaderboardWindow, user } = useTelegram();
 
   const [serverTop, setServerTop] = useState<Entry[]>([]);
@@ -25,6 +29,13 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted 
   const [serverRank, setServerRank] = useState<number | null>(null);
 
   useEffect(() => setMounted(true), []);
+
+  // multiplier is now provided by parent so no fetch here
+
+  // Close multiplier info when the leaderboard visibility changes (e.g. game started)
+  useEffect(() => {
+    if (!visible) setShowMultiplierInfo(false);
+  }, [visible]);
 
   // fetch leaderboard window from server when visible.
   // Special-case: if the leaderboard is visible because the game just ended (isGameOver)
@@ -104,11 +115,53 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted 
 
 
   return (
-    <div className="absolute inset-0 z-80 flex items-center justify-center pointer-events-auto">
-      <div className="bg-transparent backdrop-blur-sm rounded-xl p-6 w-auto min-w-max sm:min-w-[420px] lg:min-w-[520px] text-white h-auto max-w-[96%]">
-        <div className="flex items-center justify-between mb-4">
+    <div className="absolute inset-0 z-80 flex items-center justify-center pointer-events-auto overflow-x-hidden">
+      <div className="bg-black/60 backdrop-blur-sm  rounded-xl p-6 w-auto min-w-max sm:min-w-[420px] lg:min-w-[520px] text-white h-auto max-w-[96%]">
+        <div className="flex items-center justify-between mb-1">
           <h3 className="text-lg font-clash font-semibold">Leaderboard</h3>
           <div className="text-sm text-white/80 font-clash">Top 5</div>
+        </div>
+
+        <div className="flex items-start justify-start gap-2 mb-3">
+          <div className="text-sm text-white/90 font-clash">Multiplier <span className="font-bold text-primary">{multiplier}x</span></div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setShowMultiplierInfo(true); }}
+            aria-expanded={showMultiplierInfo}
+            aria-label="Multiplier info"
+            className="p-0.5 rounded text-white/80 hover:bg-white/6 focus:outline-none"
+          >
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-4 h-4"
+            >
+              <path
+                d="M10 14.1665V9.1665"
+                stroke="#FFFFFF"
+                strokeOpacity="0.5"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <ellipse
+                cx="0.833333"
+                cy="0.833333"
+                rx="0.833333"
+                ry="0.833333"
+                transform="matrix(1 0 0 -1 9.16602 7.5)"
+                fill="#FFFFFF"
+                fillOpacity="0.5"
+              />
+              <path
+                d="M18.3327 9.99984C18.3327 13.9282 18.3327 15.8924 17.1123 17.1128C15.8919 18.3332 13.9277 18.3332 9.99935 18.3332C6.07098 18.3332 4.10679 18.3332 2.8864 17.1128C1.66602 15.8924 1.66602 13.9282 1.66602 9.99984C1.66602 6.07147 1.66602 4.10728 2.8864 2.88689C4.10679 1.6665 6.07098 1.6665 9.99935 1.6665C13.9277 1.6665 15.8919 1.6665 17.1123 2.88689C17.9237 3.69834 18.1957 4.83863 18.2868 6.6665"
+                stroke="#FFFFFF"
+                strokeOpacity="0.5"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
         </div>
 
         {/* name input removed as requested */}
@@ -117,7 +170,7 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted 
           {top.length === 0 && <div className="text-sm text-white/70 font-clash">No scores yet — be the first!</div>}
             {top.map((e, i) => {
               const pos = i + 1;
-              const posColor = pos === 1 ? '#FFD700' : pos === 2 ? '#C0C0C0' : pos === 3 ? '#CD7F32' : '#00FFE5';
+              const posColor = pos === 1 ? '#FFD700' : pos === 2 ? '#C0C0C0' : pos === 3 ? '#CD7F32' : 'var(--color-primary)';
               const isCurrent = (currentUserId && e.userId && String(e.userId) === currentUserId);
               return (
                 <div
@@ -130,29 +183,9 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted 
                     <div className="truncate font-clash">{e.name}</div>
                   </div>
 
-                  <div
-                    className="ml-4"
-                    style={{
-                      width: '60px',
-                      height: '20px',
-                      borderRadius: 8,
-                      background: '#00FFE5',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px',
-                      paddingLeft: '6px',
-                      paddingRight: '6px',
-                      opacity: 1,
-                      transform: 'rotate(0deg)'
-                    }}
-                  >
-                    <span style={{ color: '#000', fontWeight: 700, fontSize: '0.875rem' }}>{e.score}</span>
-                    <img
-                      src="/images/tree/points-logo-black.svg"
-                      alt="points"
-                      style={{ width: '16px', height: '16px', display: 'block' }}
-                    />
+                  <div className="ml-4 flex items-center justify-center gap-1 px-2 rounded-md bg-primary" style={{ width: 60, height: 20 }}>
+                    <span className="text-primary-foreground font-bold" style={{ fontSize: '0.875rem' }}>{e.score}</span>
+                    <img src="/images/tree/points-logo-black.svg" alt="points" style={{ width: 16, height: 16, display: 'block' }} />
                   </div>
                 </div>
               );
@@ -164,7 +197,7 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted 
               {(() => {
                   const e = youEntry as Entry;
                   const pos = typeof e.rn === 'number' ? e.rn : 0;
-                  const posColor = pos === 1 ? '#FFD700' : pos === 2 ? '#C0C0C0' : pos === 3 ? '#CD7F32' : '#00FFE5';
+                  const posColor = pos === 1 ? '#FFD700' : pos === 2 ? '#C0C0C0' : pos === 3 ? '#CD7F32' : 'var(--color-primary)';
                   const isCurrent = (currentUserId && e.userId && String(e.userId) === currentUserId);
                   return (
                     <div
@@ -177,29 +210,9 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted 
                         <div className="truncate">{e.name}</div>
                       </div>
 
-                      <div
-                        className="ml-4"
-                        style={{
-                          width: '60px',
-                          height: '20px',
-                          borderRadius: 8,
-                          background: '#00FFE5',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '4px',
-                          paddingLeft: '6px',
-                          paddingRight: '6px',
-                          opacity: 1,
-                          transform: 'rotate(0deg)'
-                        }}
-                      >
-                        <span className="font-clash" style={{ color: '#000', fontWeight: 700, fontSize: '0.875rem' }}>{e.score}</span>
-                        <img
-                          src="/images/tree/points-logo-black.svg"
-                          alt="points"
-                          style={{ width: '16px', height: '16px', display: 'block' }}
-                        />
+                      <div className="ml-4 flex items-center justify-center gap-1 px-2 rounded-md bg-primary" style={{ width: 60, height: 20 }}>
+                        <span className="text-primary-foreground font-bold" style={{ fontSize: '0.875rem' }}>{e.score}</span>
+                        <img src="/images/tree/points-logo-black.svg" alt="points" style={{ width: 16, height: 16, display: 'block' }} />
                       </div>
                     </div>
                   );
@@ -216,6 +229,30 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted 
           </div>
         )}
       </div>
+
+      <Dialog open={showMultiplierInfo} onOpenChange={setShowMultiplierInfo}>
+        <DialogContent className="w-[min(92%,420px)] max-w-[420px] max-h-[80vh] overflow-y-auto small-scrollbar scrollbar-thin scrollbar-thumb-primary scrollbar-track-transparent">
+          <DialogHeader className="text-left">
+            <DialogTitle>Multiplier</DialogTitle>
+            <DialogDescription>Multiplier is based on 7 day swap volume.</DialogDescription>
+          </DialogHeader>
+
+          <table className="w-full text-sm mt-4">
+            <thead className="text-left text-white/80"><tr><th>7d volume</th><th>Multiplier</th></tr></thead>
+            <tbody>
+              <tr><td className="py-1">&lt; $10,000</td><td className="py-1">1x</td></tr>
+              <tr><td className="py-1">$10,000 — $20,000</td><td className="py-1">2x</td></tr>
+              <tr><td className="py-1">20,000 — $30,000</td><td className="py-1">3x</td></tr>
+              <tr><td className="py-1">$30,000 — $40,000</td><td className="py-1">4x</td></tr>
+              <tr><td className="py-1">&gt; $40,000</td><td className="py-1">5x</td></tr>
+            </tbody>
+          </table>
+
+          <div className="pt-4 flex justify-start">
+            <Button onClick={(e: any) => { e.stopPropagation?.(); setShowMultiplierInfo(false); }} className="px-3 py-1">Got it</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
