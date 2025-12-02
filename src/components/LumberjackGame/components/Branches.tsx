@@ -12,6 +12,7 @@ interface BranchesProps {
 }
 
 export function Branches({ visibleSegments, patternOffset, branchOffsetLeftPx, branchOffsetRightPx, branchTopOffsetPx }: BranchesProps) {
+  const VISUAL_BRANCH_DROP_PX = 22;
   return (
     <div className={`absolute bottom-0 left-1/2 transform -translate-x-1/2 flex flex-col-reverse items-center pointer-events-none ${RESPONSIVE_CONFIG.trunk.width} h-full`}>
       {visibleSegments.map((seg, idx) => {
@@ -31,17 +32,18 @@ export function Branches({ visibleSegments, patternOffset, branchOffsetLeftPx, b
               const imgClass = `absolute h-full w-auto object-contain ${RESPONSIVE_CONFIG.branch.scale} pointer-events-none select-none`;
               const offsetX = isLeft ? branchOffsetLeftPx : branchOffsetRightPx;
               const offsetY = branchTopOffsetPx;
+              const visualTop = offsetY + VISUAL_BRANCH_DROP_PX;
 
               const imgStyle: React.CSSProperties = isLeft
                 ? {
                     right: `50%`,
-                    top: `${offsetY}px`,
+                    top: `${visualTop}px`,
                     transform: `scaleX(-1) translateX(${offsetX}px)`,
                     transformOrigin: 'right center',
                   }
                 : {
                     left: `50%`,
-                    top: `${offsetY}px`,
+                    top: `${visualTop}px`,
                     transform: `translateX(${offsetX}px)`,
                     transformOrigin: 'left center',
                   };
