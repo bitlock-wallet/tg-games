@@ -42,6 +42,13 @@ async function ensureBotUsername() {
   }
 }
 
+// Telegram Mini App `startapp` parameter must avoid percent-encoded characters.
+// Use URL-safe Base64 (base64url) to encode the payload without '%' sequences.
+function base64UrlEncode(input) {
+  const s = String(input);
+  return Buffer.from(s).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 async function sendWebAppButtons(chatId) {
   // For private chats: send a web_app inline button (opens inside Telegram).
   // For groups: use a deep-link (https://t.me/<bot>/<app_short_name>?startapp=<game>) which
@@ -62,7 +69,9 @@ async function sendWebAppButtons(chatId) {
     // Deep link: include chat id in the startapp payload so the web app can know the originating chat.
     // Format: <gameId>:<chatId>
     const dlPayload = `${g.id}:${chatId}`;
-    const deepLink = botUser ? `https://t.me/${botUser}/${appShortName}?startapp=${encodeURIComponent(dlPayload)}` : webUrl;
+    // Encode the payload using base64url to avoid '%' characters in Telegram Mini App links
+    const encoded = base64UrlEncode(dlPayload);
+    const deepLink = botUser ? `https://t.me/${botUser}/${appShortName}?startapp=${encoded}` : webUrl;
     console.log('[DEBUG] Sending group deepLink:', deepLink);
     const keyboard = [[{ text: `Play ${g.title}`, url: deepLink }]];
     const payload = {
