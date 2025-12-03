@@ -49,9 +49,9 @@ export const RESPONSIVE_CONFIG = {
   branch: {
     scale: "scale-160 sm:scale-120 md:scale-110",
     topOffset: "-top-8 sm:-top-10 md:-top-12",
-    topOffsetPx: -32,
-    topOffsetSmPx: -40,
-    topOffsetMdPx: -48,
+    topOffsetPx: -8,
+    topOffsetSmPx: -12,
+    topOffsetMdPx: -16,
     offsetLeft: 52,
     offsetLeftSm: 68,
     offsetLeftMd: 103,

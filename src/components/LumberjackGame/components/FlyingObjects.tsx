@@ -9,7 +9,7 @@ interface FlyingObjectsProps {
 }
 
 export function FlyingObjects({ flyingChunks, flyingBranches, patternOffset }: FlyingObjectsProps) {
-  const VISUAL_BRANCH_DROP_PX = 8;
+  const VISUAL_BRANCH_DROP_PX = 20;
   return (
     <>
       {/* Flying chunks */}
@@ -91,14 +91,14 @@ export function FlyingObjects({ flyingChunks, flyingBranches, patternOffset }: F
                 ...(b.isLeft
                   ? {
                       right: `50%`,
-                        top: `${b.offsetY + VISUAL_BRANCH_DROP_PX}px`,
-                        transform: `scaleX(-1) translateX(${b.offsetX}px) ${flightTransform}`,
+                      top: `${b.offsetY}px`,
+                      transform: `scaleX(-1) translateX(${b.offsetX}px) ${flightTransform}`,
                       transformOrigin: 'right center',
                     }
                   : {
                       left: `50%`,
-                        top: `${b.offsetY + VISUAL_BRANCH_DROP_PX}px`,
-                        transform: `translateX(${b.offsetX}px) ${flightTransform}`,
+                      top: `${b.offsetY}px`,
+                      transform: `translateX(${b.offsetX}px) ${flightTransform}`,
                       transformOrigin: 'left center',
                     }),
                 opacity,

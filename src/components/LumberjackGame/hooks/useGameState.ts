@@ -108,7 +108,7 @@ export function useGameState() {
       
       const segGap = RESPONSIVE_CONFIG.segment.gapPx || 0;
       const segmentTotal = RESPONSIVE_CONFIG.segment.heightPx + segGap;
-      setPatternOffset((offset) => offset + segmentTotal / 2);
+      setPatternOffset((offset) => offset + segmentTotal);
 
       if (newArr.length < 12) {
         const add = generateNewSegment(newArr);
@@ -132,11 +132,26 @@ export function useGameState() {
         setTimeout(() => setLevelNotification(null), 3000);
       }
       
-      // Time bonus decreases with level. Adjusted to give players slightly more
-      // time per successful hit while preserving difficulty scaling.
-      // Start at 0.40s, decrease by 0.02s per level, with a lower cap of 0.15s.
-      // Level 0: 0.40s, Level 1: 0.38s, Level 2: 0.36s, ... down to 0.15s min.
-      let timeBonus = Math.max(0.15, 0.4 - (level * 0.02));
+      // Piecewise time bonus curve:
+      // - Keep a noticeable ramp from levels 0..7 so the early-game feels punchy.
+      // - After level 7, apply a much gentler decay so the timer still tightens
+      //   but very gradually (prevents the difficulty explosion around level 8+).
+      // Parameters chosen to be subtle; we can tweak further after playtesting.
+      const base = 0.42; // starting bonus at level 0
+      const earlyDecay = 0.02; // per level decay for levels 0..7
+      const lateDecay = 0.005; // per level decay after level 7 (very gentle)
+      const earlyMaxLevel = 6;
+      const earlyMin = 0.18; // don't let early ramp drop below this
+      const globalMin = 0.15; // absolute floor for very late levels
+
+      let timeBonus: number;
+      if (level <= earlyMaxLevel) {
+        timeBonus = Math.max(earlyMin, base - level * earlyDecay);
+      } else {
+        const earlyVal = Math.max(earlyMin, base - earlyMaxLevel * earlyDecay);
+        const extraLevels = level - earlyMaxLevel;
+        timeBonus = Math.max(globalMin, earlyVal - extraLevels * lateDecay);
+      }
 
       setTimeRemaining((t) => Math.min(t + timeBonus, 7));
       return newScore;

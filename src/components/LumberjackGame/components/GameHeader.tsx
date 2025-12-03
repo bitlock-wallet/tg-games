@@ -45,19 +45,19 @@ export function GameHeader({ isRunning, isGameOver, timeRemaining, score, visibl
           </div>
 
           {/* Score with points logo */}
-          <div className="flex items-center justify-center">
+          <div className="flex items-center justify-center relative">
             <div className="text-3xl font-clash font-semibold text-white drop-shadow-lg mb-1 text-center truncate pr-0">
               {score}
             </div>
             <img src="/images/tree/points-logo.svg" alt="points" className="ml-3 w-10 h-10" />
+            
+            {/* Level Notification - absolutely positioned to not affect layout */}
+            {levelNotification !== null && (
+              <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap text-2xl sm:text-3xl md:text-4xl font-clash font-bold text-[#00FFE5] drop-shadow-lg animate-pulse">
+                Level {levelNotification}
+              </div>
+            )}
           </div>
-
-          {/* Level Notification */}
-          {levelNotification !== null && (
-            <div className="text-2xl sm:text-3xl md:text-4xl font-clash font-bold text-[#00FFE5] drop-shadow-lg animate-pulse">
-              Level {levelNotification}
-            </div>
-          )}
         </div>
       </div>
     </div>
