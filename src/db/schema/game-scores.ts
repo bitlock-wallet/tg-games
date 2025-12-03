@@ -10,6 +10,7 @@ export const gameScores = pgTable('game_scores', {
 }, (table) => [
   // Composite primary key on game_id and user_id
   primaryKey({ columns: [table.gameId, table.userId] }),
-  // Index on game_id and score (descending)
-  index('idx_game_score').on(table.gameId, table.score),
+  // Composite index for leaderboard queries: game_id + score DESC + user_id
+  // This covers ORDER BY score DESC, user_id and WHERE game_id = X queries efficiently
+  index('idx_game_score_user').on(table.gameId, table.score.desc(), table.userId),
 ]);

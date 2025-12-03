@@ -133,10 +133,6 @@ export function useGameState() {
       }
       
       // Piecewise time bonus curve:
-      // - Keep a noticeable ramp from levels 0..7 so the early-game feels punchy.
-      // - After level 7, apply a much gentler decay so the timer still tightens
-      //   but very gradually (prevents the difficulty explosion around level 8+).
-      // Parameters chosen to be subtle; we can tweak further after playtesting.
       const base = 0.42; // starting bonus at level 0
       const earlyDecay = 0.02; // per level decay for levels 0..7
       const lateDecay = 0.005; // per level decay after level 7 (very gentle)

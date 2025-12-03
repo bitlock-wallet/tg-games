@@ -48,6 +48,12 @@ async function getApiBase(): Promise<string> {
     return cachedApiBase;
   }
 
+
+  if (window.location.protocol === 'https:') {
+    cachedApiBase = window.location.origin;
+    return cachedApiBase;
+  }
+
   // Otherwise, try to detect host.docker.internal quickly and use it if present.
   const hasHostDocker = await detectHostDockerInternal(500);
   if (hasHostDocker) {
@@ -115,19 +121,47 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
         if (!detected && raw) {
           try {
             const pairs = new URLSearchParams(raw);
-            const sp = pairs.get('start_param') ?? pairs.get('startapp') ?? pairs.get('start');
+            let sp = pairs.get('start_param') ?? pairs.get('startapp') ?? pairs.get('start');
             if (sp) {
+              let decodedSp = sp;
+              // If no colon is found, assume it is Base64URL and decode it
+              if (!sp.includes(':')) {
+                try {
+                  // 1. Replace URL-safe chars back to standard Base64
+                  const base64 = sp.replace(/-/g, '+').replace(/_/g, '/');
+                  // 2. Decode
+                  decodedSp = atob(base64);
+                  console.log('[TelegramProvider] decoded start_param:', decodedSp);
+                } catch (e) {
+                  console.warn('[TelegramProvider] failed to decode start_param:', e);
+                }
+              }
+              
               // support payload format <gameId>:<chatId>
-              const parts = sp.split(':');
+              const parts = decodedSp.split(':');
               if (parts.length > 1) detected = parts.slice(1).join(':');
             }
           } catch (e) {}
         }
         // Also check unsafe init object for start_param if present
         if (!detected && unsafe && typeof unsafe === 'object') {
-          const possible = unsafe.start_param ?? unsafe.startapp ?? unsafe.start;
+          let possible = unsafe.start_param ?? unsafe.startapp ?? unsafe.start;
           if (possible && typeof possible === 'string') {
-            const parts = possible.split(':');
+            let decodedPossible = possible;
+            // If no colon is found, assume it is Base64URL and decode it
+            if (!possible.includes(':')) {
+              try {
+                // 1. Replace URL-safe chars back to standard Base64
+                const base64 = possible.replace(/-/g, '+').replace(/_/g, '/');
+                // 2. Decode
+                decodedPossible = atob(base64);
+                console.log('[TelegramProvider] decoded unsafe start_param:', decodedPossible);
+              } catch (e) {
+                console.warn('[TelegramProvider] failed to decode unsafe start_param:', e);
+              }
+            }
+            
+            const parts = decodedPossible.split(':');
             if (parts.length > 1) detected = parts.slice(1).join(':');
           }
           // also accept unsafe.chat_instance as a fallback scoping key

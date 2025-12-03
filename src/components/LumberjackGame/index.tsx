@@ -12,9 +12,10 @@ import { ControlButtons } from "./components/ControlButtons";
 import { useTelegram } from "../TelegramProvider";
 
 export default function LumberjackGame() {
-  const { initData, user, sendScore, chatId, getMultiplier } = useTelegram();
+  const { initData, user, sendScore, chatId, getMultiplier, getLeaderboard } = useTelegram();
   const scoreSentRef = useRef(false);
   const [scoreSubmitted, setScoreSubmitted] = React.useState(false);
+  const announcedRef = useRef(false);
 
   const {
     segments,
@@ -55,6 +56,7 @@ export default function LumberjackGame() {
     start(forceNew);
     // reset flag so a new score can be sent for the next run
     scoreSentRef.current = false;
+    announcedRef.current = false;
     setScoreSubmitted(false);
     // reset timer to starting value (2.5 seconds)
     setTimeRemaining(2.5);
@@ -67,8 +69,71 @@ export default function LumberjackGame() {
     scoreSentRef.current = true;
     (async () => {
       try {
+        // Determine gameId scope
+        const scopedGameId = chatId ? `lumberjack:${chatId}` : 'lumberjack';
+
+        // Fetch previous top-5 BEFORE submitting so we can detect enters/improvements
+        let prevTop: any[] = [];
+        try {
+          prevTop = await getLeaderboard(scopedGameId, 5) || [];
+        } catch (e) {
+          // ignore fetch errors
+          prevTop = [];
+        }
+
+        // figure out previous rank if present
+        const prevIndex = user?.id ? prevTop.findIndex((r: any) => String(r.user_id) === String(user.id)) : -1;
+        const wasInTop5 = prevIndex !== -1;
+        const prevRank = wasInTop5 ? prevIndex + 1 : null;
+
+        // Submit score (server upsert)
         await sendScore("lumberjack", score);
         setScoreSubmitted(true);
+
+        // Fetch updated top-5 after submit
+        let newTop: any[] = [];
+        try {
+          newTop = await getLeaderboard(scopedGameId, 5) || [];
+        } catch (e) {
+          newTop = [];
+        }
+
+        const newIndex = user?.id ? newTop.findIndex((r: any) => String(r.user_id) === String(user.id)) : -1;
+        const isInTop5 = newIndex !== -1;
+        const newRank = isInTop5 ? newIndex + 1 : null;
+
+        // Announce if user newly entered top5 OR if they were in top5 and improved rank
+        const shouldAnnounce = isInTop5 && (!wasInTop5 || (wasInTop5 && prevRank !== null && newRank !== null && newRank < prevRank));
+        if (shouldAnnounce && user) {
+          announcedRef.current = true;
+
+          // Build username
+          let username = user.username || null;
+          if (!username && (user.first_name || user.last_name)) {
+            username = [user.first_name, user.last_name].filter(Boolean).join(' ');
+          }
+          if (!username) username = `User ${user.id}`;
+
+          const payload = {
+            userId: user.id,
+            username,
+            score,
+            gameId: scopedGameId,
+            chatId: chatId ?? null,
+            isTopFive: true,
+          };
+
+          try {
+            if (navigator && (navigator as any).sendBeacon) {
+              const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+              (navigator as any).sendBeacon('/api/announce', blob);
+            } else {
+              fetch('/api/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => {});
+            }
+          } catch (e) {
+            // ignore announce errors
+          }
+        }
       } catch (err) {
         // don't block UX on leaderboard failures; log for debugging
         console.error("Failed to submit score", err);
@@ -77,36 +142,6 @@ export default function LumberjackGame() {
       }
     })();
   }, [isGameOver, score, sendScore]);
-
-  // Announce to group/bot when user closes the game/page. Use sendBeacon when available
-  // so the request survives unload. Only send if there is a meaningful score or game-over.
-  useEffect(() => {
-    const shouldAnnounce = () => isGameOver || (typeof score === 'number' && score > 0);
-    const buildPayload = () => ({ userId: user?.id ?? null, score, gameId: chatId ? `lumberjack:${chatId}` : 'lumberjack', chatId: chatId ?? null });
-
-    const onHide = () => {
-      if (!shouldAnnounce()) return;
-      const payload = JSON.stringify(buildPayload());
-      try {
-        if (navigator && (navigator as any).sendBeacon) {
-          const blob = new Blob([payload], { type: 'application/json' });
-          (navigator as any).sendBeacon('/api/announce', blob);
-        } else {
-          // keepalive is supported in many browsers for fetch during unload
-          fetch('/api/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true });
-        }
-      } catch (e) {
-        // ignore
-      }
-    };
-
-    window.addEventListener('pagehide', onHide);
-    window.addEventListener('beforeunload', onHide);
-    return () => {
-      window.removeEventListener('pagehide', onHide);
-      window.removeEventListener('beforeunload', onHide);
-    };
-  }, [isGameOver, score, user?.id]);
 
   const { branchOffsetLeftPx, branchOffsetRightPx, branchTopOffsetPx } = useResponsiveBranches();
 

@@ -6,6 +6,7 @@ type Body = {
   score?: number | null;
   gameId?: string | null;
   chatId?: string | null;
+  isTopFive?: boolean;
 };
 
 export async function POST(req: Request) {
@@ -18,8 +19,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'Missing BOT_TOKEN' }, { status: 500 });
     }
 
-    const name = body.username ?? (body.userId ? String(body.userId) : 'Unknown');
+    // Only announce if it's a top 5 entry
+    if (!body.isTopFive) {
+      return NextResponse.json({ ok: true, skipped: true, reason: 'Not a top 5 score' });
+    }
+
+    const name = body.username ?? (body.userId ? `User ${body.userId}` : 'Unknown');
     const score = typeof body.score === 'number' ? body.score : null;
+    
+    // Extract clean game name from gameId (remove scope suffix if present)
+    let gameName = 'Lumberjack';
+    if (body.gameId) {
+      const baseGameId = body.gameId.split(':')[0];
+      gameName = baseGameId.charAt(0).toUpperCase() + baseGameId.slice(1);
+    }
     const gameId = body.gameId ?? 'game';
 
     // Build a short, unobtrusive announcement. Prefer posting to provided chatId (if any),
@@ -36,9 +49,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'No target chat id available for announce' }, { status: 400 });
     }
 
-    let text = '';
-    if (score !== null) text = `${name} scored ${score} on ${gameId}`;
-    else text = `${name} opened/closed ${gameId}`;
+    // Format: "John Timber entered the Top 5 in Lumberjack with 420 points"
+    const text = score !== null 
+      ? `${name} entered the Top 5 in ${gameName} with ${score} points` 
+      : `${name} played ${gameName}`;
 
     const resp = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',

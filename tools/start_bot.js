@@ -113,10 +113,35 @@ async function handleMessage(msg) {
   }
 
   // Fallback reply
+  // Only respond to explicit commands. Support /info and /help in addition to /start.
   try {
-    await api('sendMessage', { chat_id: chatId, text: 'Send /start to see available games.' });
+    const infoMatch = typeof text === 'string' && text.match(/^\/info(?:@[^\s]+)?$/i);
+    const helpMatch = typeof text === 'string' && text.match(/^\/help(?:@[^\s]+)?$/i);
+
+    if (infoMatch) {
+      // /info should behave like /start (show game buttons)
+      try {
+        await sendWebAppButtons(chatId);
+      } catch (err) {
+        console.error('Failed to send /info response:', err);
+      }
+      return;
+    }
+
+    if (helpMatch) {
+      // Minimal help reply
+      try {
+        await api('sendMessage', { chat_id: chatId, text: 'Send /start to see available games.' });
+      } catch (err) {
+        console.error('Failed to send /help reply:', err);
+      }
+      return;
+    }
+
+    // Otherwise ignore the message (don't reply to every message)
+    return;
   } catch (err) {
-    console.error('Failed to send fallback reply:', err);
+    console.error('Error handling non-command message:', err);
   }
 }
 
