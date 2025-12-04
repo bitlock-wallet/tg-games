@@ -130,38 +130,64 @@ export default function LumberjackGame() {
         // Clear optimistic score once backend data is received
         setOptimisticScore(null);
 
-        // Announce if user newly entered top5 OR if they were in top5 and improved rank
-        const shouldAnnounce = isInTop5 && (!wasInTop5 || (wasInTop5 && prevRank !== null && newRank !== null && newRank < prevRank));
-        if (shouldAnnounce && user) {
-          announcedRef.current = true;
+        // // Announce if user newly entered top5 OR if they were in top5 and improved rank
+        // const shouldAnnounce = isInTop5 && (!wasInTop5 || (wasInTop5 && prevRank !== null && newRank !== null && newRank < prevRank));
 
-          // Build username
-          let username = user.username || null;
-          if (!username && (user.first_name || user.last_name)) {
-            username = [user.first_name, user.last_name].filter(Boolean).join(' ');
-          }
-          if (!username) username = `User ${user.id}`;
+        // console.log('[LumberjackGame] Announcement check:', {
+        //   isInTop5,
+        //   wasInTop5,
+        //   prevRank,
+        //   newRank,
+        //   shouldAnnounce,
+        //   chatId,
+        //   scopedGameId
+        // });
 
-          const payload = {
-            userId: user.id,
-            username,
-            score,
-            gameId: scopedGameId,
-            chatId: chatId ?? null,
-            isTopFive: true,
-          };
+        // if (shouldAnnounce && user) {
+        //   announcedRef.current = true;
 
-          try {
-            if (navigator && (navigator as any).sendBeacon) {
-              const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-              (navigator as any).sendBeacon('/api/announce', blob);
-            } else {
-              fetch('/api/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => { });
-            }
-          } catch (e) {
-            // ignore announce errors
-          }
-        }
+        //   // Build username
+        //   let username = user.username || null;
+        //   if (!username && (user.first_name || user.last_name)) {
+        //     username = [user.first_name, user.last_name].filter(Boolean).join(' ');
+        //   }
+        //   if (!username) username = `User ${user.id}`;
+
+        //   const payload = {
+        //     userId: user.id,
+        //     username,
+        //     score,
+        //     gameId: scopedGameId,
+        //     chatId: chatId ?? null,
+        //     isTopFive: true,
+        //   };
+
+        //   console.log('[LumberjackGame] 🎉 Announcing top 5 entry:', payload);
+
+        //   try {
+        //     if (navigator && (navigator as any).sendBeacon) {
+        //       const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        //       const sent = (navigator as any).sendBeacon('/api/announce', blob);
+        //       console.log('[LumberjackGame] sendBeacon result:', sent);
+        //     } else {
+        //       fetch('/api/announce', {
+        //         method: 'POST',
+        //         headers: { 'Content-Type': 'application/json' },
+        //         body: JSON.stringify(payload),
+        //         keepalive: true
+        //       })
+        //         .then(res => {
+        //           console.log('[LumberjackGame] announce response status:', res.status);
+        //           return res.json();
+        //         })
+        //         .then(data => console.log('[LumberjackGame] announce response:', data))
+        //         .catch(err => console.error('[LumberjackGame] announce error:', err));
+        //     }
+        //   } catch (e) {
+        //     console.error('[LumberjackGame] announce exception:', e);
+        //   }
+        // }
+        // ANNOUNCEMENT SYSTEM DISABLED - Code commented out above 
       } catch (err) {
         // don't block UX on leaderboard failures; log for debugging
         console.error("Failed to submit score", err);
