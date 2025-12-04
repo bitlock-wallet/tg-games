@@ -75,7 +75,8 @@ export default function LumberjackGame() {
         // Fetch previous top-5 BEFORE submitting so we can detect enters/improvements
         let prevTop: any[] = [];
         try {
-          prevTop = await getLeaderboard(scopedGameId, 5) || [];
+          const leaderboardData = await getLeaderboard(scopedGameId, 5);
+          prevTop = leaderboardData?.top || leaderboardData || [];
         } catch (e) {
           // ignore fetch errors
           prevTop = [];
@@ -93,7 +94,8 @@ export default function LumberjackGame() {
         // Fetch updated top-5 after submit
         let newTop: any[] = [];
         try {
-          newTop = await getLeaderboard(scopedGameId, 5) || [];
+          const leaderboardData = await getLeaderboard(scopedGameId, 5);
+          newTop = leaderboardData?.top || leaderboardData || [];
         } catch (e) {
           newTop = [];
         }
