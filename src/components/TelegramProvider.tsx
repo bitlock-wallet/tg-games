@@ -73,6 +73,14 @@ type TdUser = {
   last_name?: string;
 };
 
+type LeaderboardCache = {
+  data: any;
+  timestamp: number;
+  gameId: string;
+  userId?: string;
+  params: { top: number; before: number; after: number };
+};
+
 type TelegramContextType = {
   initData: string | null;
   initDataUnsafe: any | null;
@@ -81,6 +89,8 @@ type TelegramContextType = {
   sendScore: (gameId: string, score: number) => Promise<any>;
   getLeaderboard: (gameId: string, limit?: number) => Promise<any>;
   getLeaderboardWindow: (gameId: string, userId?: string | number, top?: number, before?: number, after?: number) => Promise<any>;
+  prefetchLeaderboard: (gameId: string, userId?: string | number, top?: number, before?: number, after?: number) => Promise<void>;
+  invalidateLeaderboardCache: (gameId: string) => void;
   getMultiplier?: (userId?: string | number) => Promise<{ volume: number; multiplier: number }>;
 };
 
@@ -91,6 +101,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
   const [initDataUnsafe, setInitDataUnsafe] = useState<any | null>(null);
   const [user, setUser] = useState<TdUser | null>(null);
   const [chatId, setChatId] = useState<string | null>(null);
+  const [leaderboardCache, setLeaderboardCache] = useState<LeaderboardCache | null>(null);
 
   useEffect(() => {
     // If Telegram WebApp is available on the window, read initData immediately.
@@ -136,12 +147,12 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
                   console.warn('[TelegramProvider] failed to decode start_param:', e);
                 }
               }
-              
+
               // support payload format <gameId>:<chatId>
               const parts = decodedSp.split(':');
               if (parts.length > 1) detected = parts.slice(1).join(':');
             }
-          } catch (e) {}
+          } catch (e) { }
         }
         // Also check unsafe init object for start_param if present
         if (!detected && unsafe && typeof unsafe === 'object') {
@@ -160,7 +171,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
                 console.warn('[TelegramProvider] failed to decode unsafe start_param:', e);
               }
             }
-            
+
             const parts = decodedPossible.split(':');
             if (parts.length > 1) detected = parts.slice(1).join(':');
           }
@@ -269,7 +280,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
           localChat = params.get('chat_id');
         }
         if (localChat) submitUrl += `?chat_id=${encodeURIComponent(localChat)}`;
-      } catch (e) {}
+      } catch (e) { }
       const res = await fetch(submitUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -302,7 +313,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     // include initData when present so the server can derive chat scoping if needed
     try {
       if (initData) url += `&initData=${encodeURIComponent(initData)}`;
-    } catch (e) {}
+    } catch (e) { }
     try {
       let localChat = chatId ?? null;
       if (!localChat && typeof window !== 'undefined') {
@@ -310,7 +321,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
         localChat = params.get('chat_id') ?? params.get('chat_instance');
       }
       if (localChat) url += `&chat_id=${encodeURIComponent(localChat)}`;
-    } catch (e) {}
+    } catch (e) { }
     const res = await fetch(url, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
@@ -336,16 +347,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       // ignore
     }
-    const apiBase = await getApiBase();
-    const q = new URLSearchParams();
-    try {
-      let localChat = chatId ?? null;
-      if (!localChat && typeof window !== 'undefined') {
-        const params = new URLSearchParams(window.location.search);
-        localChat = params.get('chat_id');
-      }
-      if (localChat) q.set('chat_id', String(localChat));
-    } catch (e) {}
+
     // Resolve user id: prefer explicit argument, then internal Telegram `user` state,
     // then try `initDataUnsafe.user`, then try parsing raw `initData` for a 'user' pair.
     let resolvedUserId: string | undefined = typeof userId !== 'undefined' ? String(userId) : undefined;
@@ -369,6 +371,35 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       // ignore
     }
+
+    // Check cache: valid if gameId matches, userId matches, params match, and timestamp is within 15 seconds
+    const CACHE_TTL = 15000; // 15 seconds
+    const now = Date.now();
+    if (
+      leaderboardCache &&
+      leaderboardCache.gameId === gameId &&
+      leaderboardCache.userId === resolvedUserId &&
+      leaderboardCache.params.top === top &&
+      leaderboardCache.params.before === before &&
+      leaderboardCache.params.after === after &&
+      now - leaderboardCache.timestamp < CACHE_TTL
+    ) {
+      console.log('[TelegramProvider] returning cached leaderboard data');
+      return leaderboardCache.data;
+    }
+
+    // Fetch from API
+    const apiBase = await getApiBase();
+    const q = new URLSearchParams();
+    try {
+      let localChat = chatId ?? null;
+      if (!localChat && typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        localChat = params.get('chat_id');
+      }
+      if (localChat) q.set('chat_id', String(localChat));
+    } catch (e) { }
+
     if (resolvedUserId) q.set('user_id', String(resolvedUserId));
     q.set('top', String(top));
     q.set('before', String(before));
@@ -377,7 +408,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     // include initData when present so the server can derive chat scoping if needed
     try {
       if (initData) q.set('initData', String(initData));
-    } catch (e) {}
+    } catch (e) { }
     const url = `${apiBase}/api/${encodeURIComponent(gameId)}/leaderboard-window?${q.toString()}`;
     // console.log('[TelegramProvider] getLeaderboardWindow URL:', url);
     const res = await fetch(url, {
@@ -392,10 +423,20 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
 
     const json = await res.json();
     // console.log('[TelegramProvider] getLeaderboardWindow response:', json);
-    return json;
-  }, [initData, initDataUnsafe, user, chatId]);
 
-  const getMultiplier = useCallback(async (userId?: string | number) : Promise<{ volume: number; multiplier: number }> => {
+    // Update cache
+    setLeaderboardCache({
+      data: json,
+      timestamp: now,
+      gameId,
+      userId: resolvedUserId,
+      params: { top, before, after },
+    });
+
+    return json;
+  }, [initData, initDataUnsafe, user, chatId, leaderboardCache]);
+
+  const getMultiplier = useCallback(async (userId?: string | number): Promise<{ volume: number; multiplier: number }> => {
     // Resolve user id similarly to other helper methods
     let resolvedUserId: string | undefined = typeof userId !== 'undefined' ? String(userId) : undefined;
     try {
@@ -405,7 +446,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
         else if (initData) {
           const pairs = new URLSearchParams(initData);
           const u = pairs.get('user');
-            if (u) {
+          if (u) {
             try {
               const parsed = JSON.parse(decodeURIComponent(u));
               if (parsed && parsed.id) resolvedUserId = String(parsed.id);
@@ -443,8 +484,29 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     }
   }, [initData, initDataUnsafe, user]);
 
+  // Prefetch leaderboard data (fire and forget, for preloading)
+  const prefetchLeaderboard = useCallback(async (gameId: string, userId?: string | number, top = 5, before = 5, after = 5) => {
+    try {
+      console.log('[TelegramProvider] prefetching leaderboard data');
+      await getLeaderboardWindow(gameId, userId, top, before, after);
+    } catch (e) {
+      console.warn('[TelegramProvider] prefetch failed (non-critical)', e);
+    }
+  }, [getLeaderboardWindow]);
+
+  // Invalidate cache for a specific game (e.g., after score submission)
+  const invalidateLeaderboardCache = useCallback((gameId: string) => {
+    console.log('[TelegramProvider] invalidating leaderboard cache for', gameId);
+    setLeaderboardCache((prev) => {
+      if (prev && prev.gameId === gameId) {
+        return null;
+      }
+      return prev;
+    });
+  }, []);
+
   return (
-    <TelegramContext.Provider value={{ initData, initDataUnsafe, user, chatId, sendScore, getLeaderboard, getLeaderboardWindow, getMultiplier }}>
+    <TelegramContext.Provider value={{ initData, initDataUnsafe, user, chatId, sendScore, getLeaderboard, getLeaderboardWindow, prefetchLeaderboard, invalidateLeaderboardCache, getMultiplier }}>
       {children}
     </TelegramContext.Provider>
   );

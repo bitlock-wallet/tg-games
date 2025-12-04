@@ -12,9 +12,10 @@ import { ControlButtons } from "./components/ControlButtons";
 import { useTelegram } from "../TelegramProvider";
 
 export default function LumberjackGame() {
-  const { initData, user, sendScore, chatId, getMultiplier, getLeaderboard } = useTelegram();
+  const { initData, user, sendScore, chatId, getMultiplier, getLeaderboard, prefetchLeaderboard, invalidateLeaderboardCache } = useTelegram();
   const scoreSentRef = useRef(false);
   const [scoreSubmitted, setScoreSubmitted] = React.useState(false);
+  const [optimisticScore, setOptimisticScore] = React.useState<{ score: number; username: string } | null>(null);
   const announcedRef = useRef(false);
 
   const {
@@ -58,8 +59,16 @@ export default function LumberjackGame() {
     scoreSentRef.current = false;
     announcedRef.current = false;
     setScoreSubmitted(false);
+    setOptimisticScore(null);
     // reset timer to starting value (2.5 seconds)
     setTimeRemaining(2.5);
+
+    // Prefetch leaderboard data when game starts (fire and forget)
+    // This will cache the data so it appears instantly when the game ends
+    const scopedGameId = chatId ? `lumberjack:${chatId}` : 'lumberjack';
+    prefetchLeaderboard(scopedGameId, user?.id, 5, 5, 5).catch(() => {
+      // Ignore prefetch errors (non-critical)
+    });
   };
 
   // When the game ends, send the score to the backend once.
@@ -87,9 +96,23 @@ export default function LumberjackGame() {
         const wasInTop5 = prevIndex !== -1;
         const prevRank = wasInTop5 ? prevIndex + 1 : null;
 
+        // Build username early for optimistic update
+        let username = user?.username || null;
+        if (!username && (user?.first_name || user?.last_name)) {
+          username = [user?.first_name, user?.last_name].filter(Boolean).join(' ');
+        }
+        if (!username && user?.id) username = `User ${user.id}`;
+        if (!username) username = 'You';
+
+        // Set optimistic score immediately for instant UI feedback
+        setOptimisticScore({ score, username });
+
         // Submit score (server upsert)
         await sendScore("lumberjack", score);
         setScoreSubmitted(true);
+
+        // Invalidate cache after score submission to ensure fresh data
+        invalidateLeaderboardCache(scopedGameId);
 
         // Fetch updated top-5 after submit
         let newTop: any[] = [];
@@ -103,6 +126,9 @@ export default function LumberjackGame() {
         const newIndex = user?.id ? newTop.findIndex((r: any) => String(r.user_id) === String(user.id)) : -1;
         const isInTop5 = newIndex !== -1;
         const newRank = isInTop5 ? newIndex + 1 : null;
+
+        // Clear optimistic score once backend data is received
+        setOptimisticScore(null);
 
         // Announce if user newly entered top5 OR if they were in top5 and improved rank
         const shouldAnnounce = isInTop5 && (!wasInTop5 || (wasInTop5 && prevRank !== null && newRank !== null && newRank < prevRank));
@@ -130,7 +156,7 @@ export default function LumberjackGame() {
               const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
               (navigator as any).sendBeacon('/api/announce', blob);
             } else {
-              fetch('/api/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => {});
+              fetch('/api/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => { });
             }
           } catch (e) {
             // ignore announce errors
@@ -152,7 +178,7 @@ export default function LumberjackGame() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!isRunning && (e.key === "ArrowLeft" || e.key === "ArrowRight")) doStart(isGameOver ? true: false);
+      if (!isRunning && (e.key === "ArrowLeft" || e.key === "ArrowRight")) doStart(isGameOver ? true : false);
       if (!isRunning) return;
       if (e.key === "ArrowLeft") handleChop("left", branchOffsetLeftPx, branchOffsetRightPx, branchTopOffsetPx, setTimeRemaining);
       if (e.key === "ArrowRight") handleChop("right", branchOffsetLeftPx, branchOffsetRightPx, branchTopOffsetPx, setTimeRemaining);
@@ -199,7 +225,7 @@ export default function LumberjackGame() {
     const rect = playfieldRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const centerX = rect.width / 2;
-    
+
     if (!isRunning) {
       doStart();
       return;
@@ -223,9 +249,9 @@ export default function LumberjackGame() {
       try {
         if (!getMultiplier) return;
         // Browser console log so you can see the attempt
-        try { console.log('[LumberjackGame] fetching multiplier for user', user?.id); } catch (_) {}
+        try { console.log('[LumberjackGame] fetching multiplier for user', user?.id); } catch (_) { }
         const res = await getMultiplier(user?.id);
-        try { console.log('[LumberjackGame] getMultiplier result', res); } catch (_) {}
+        try { console.log('[LumberjackGame] getMultiplier result', res); } catch (_) { }
         if (!mounted) return;
         if (res && typeof res.multiplier === 'number') setMultiplier(res.multiplier);
       } catch (err) {
@@ -268,10 +294,10 @@ export default function LumberjackGame() {
 
         {/* Controls are immediately below the playfield */}
         <div className="mt-4 mb-6">
-          <ControlButtons 
+          <ControlButtons
             isRunning={isRunning}
             isGameOver={isGameOver}
-            onChop={(side: PlayerSide) => handleChop(side, branchOffsetLeftPx, branchOffsetRightPx, branchTopOffsetPx, setTimeRemaining)} 
+            onChop={(side: PlayerSide) => handleChop(side, branchOffsetLeftPx, branchOffsetRightPx, branchTopOffsetPx, setTimeRemaining)}
             onStart={doStart}
           />
         </div>

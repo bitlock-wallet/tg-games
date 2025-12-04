@@ -30,6 +30,7 @@ interface PlayfieldProps {
   multiplier?: number | string;
   onPlayfieldClick: (e: React.MouseEvent<HTMLDivElement>) => void;
   scoreSubmitted?: boolean;
+  optimisticScore?: { score: number; username: string } | null;
 }
 
 export function Playfield({
@@ -52,6 +53,7 @@ export function Playfield({
   multiplier,
   onPlayfieldClick,
   scoreSubmitted,
+  optimisticScore,
 }: PlayfieldProps) {
   return (
     <div
@@ -65,7 +67,7 @@ export function Playfield({
         return (
           <>
             <GameHeader isRunning={isRunning} isGameOver={isGameOver} timeRemaining={timeRemaining} score={score} visible={!leaderboardVisible} levelNotification={levelNotification} multiplier={multiplier} />
-            <Leaderboard visible={leaderboardVisible} isGameOver={isGameOver} currentScore={score} scoreSubmitted={scoreSubmitted} multiplier={multiplier} />
+            <Leaderboard visible={leaderboardVisible} isGameOver={isGameOver} currentScore={score} scoreSubmitted={scoreSubmitted} optimisticScore={optimisticScore} multiplier={multiplier} />
             {!leaderboardVisible && <GameOverlay isGameOver={isGameOver} />}
           </>
         );

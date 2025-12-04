@@ -45,13 +45,9 @@ export async function getLeaderboardWindowAction(gameId: string, userId?: string
   const client = await pgPool.connect();
   try {
     console.log('[getLeaderboardWindowAction] inputs', { gameId, userId, top, before, after });
-    
-    // Single optimized query that returns everything we need in one shot:
-    // - Top N scores
-    // - User's rank and score
-    // - Window around user
-    // - Total count
-    // Uses WITH clause (CTE) to avoid multiple table scans
+
+    // Optimized query: Single CTE for ranked scores, conditional logic for window
+    // This reduces the number of table scans and UNION operations
     const optimizedQuery = `
       WITH ranked_scores AS (
         SELECT 
@@ -62,52 +58,71 @@ export async function getLeaderboardWindowAction(gameId: string, userId?: string
           COUNT(*) OVER () AS total
         FROM game_scores
         WHERE game_id = $1
-      ),
-      top_scores AS (
-        SELECT user_id, username, score, rn FROM ranked_scores WHERE rn <= $2
-      ),
-      user_score AS (
-        SELECT user_id, username, score, rn, total FROM ranked_scores WHERE user_id = $3
+      )
+      ${userId ? `
+      , user_rank AS (
+        SELECT rn, total FROM ranked_scores WHERE user_id = $2 LIMIT 1
       )
       SELECT 
-        'top' AS type, user_id, username, score, rn, NULL::bigint AS total
-      FROM top_scores
-      UNION ALL
+        rs.user_id,
+        rs.username,
+        rs.score,
+        rs.rn,
+        COALESCE(ur.total, (SELECT total FROM ranked_scores LIMIT 1)) AS total
+      FROM ranked_scores rs
+      LEFT JOIN user_rank ur ON true
+      WHERE 
+        rs.rn <= $3  -- top N
+        OR (
+          ur.rn IS NOT NULL AND
+          rs.rn BETWEEN GREATEST(1, ur.rn - $4) AND (ur.rn + $5)
+        )
+      ORDER BY rs.rn
+      ` : `
       SELECT 
-        'user' AS type, user_id, username, score, rn, total
-      FROM user_score
-      UNION ALL
-      SELECT 
-        'window' AS type, user_id, username, score, rn, NULL::bigint AS total
+        user_id,
+        username,
+        score,
+        rn,
+        total
       FROM ranked_scores
-      WHERE user_id = $3 OR (rn BETWEEN (SELECT GREATEST(1, rn - $4) FROM user_score) 
-                            AND (SELECT rn + $5 FROM user_score))
+      WHERE rn <= $3
+      ORDER BY rn
+      `}
     `;
 
-    const params = [gameId, top, userId || '', before, after];
+    const params = userId ? [gameId, userId, top, before, after] : [gameId, top];
     const result = await client.query(optimizedQuery, params);
-    
+
+    // Parse results
     const topRows: any[] = [];
     const windowRows: any[] = [];
     let userRank: number | null = null;
     let total: number | null = null;
-    
+
     for (const row of result.rows) {
-      if (row.type === 'top') {
+      const entry = { user_id: row.user_id, username: row.username, score: row.score, rn: row.rn };
+
+      if (row.rn <= top) {
         topRows.push({ user_id: row.user_id, username: row.username, score: row.score });
-      } else if (row.type === 'user') {
+      }
+
+      windowRows.push(entry);
+
+      if (userId && row.user_id === userId) {
         userRank = row.rn;
-        total = row.total ? Number(row.total) : null;
-      } else if (row.type === 'window') {
-        windowRows.push({ user_id: row.user_id, username: row.username, score: row.score, rn: row.rn });
+      }
+
+      if (row.total && total === null) {
+        total = Number(row.total);
       }
     }
 
-    console.log('[getLeaderboardWindowAction] result:', { 
-      topCount: topRows.length, 
-      windowCount: windowRows.length, 
-      rank: userRank, 
-      total 
+    console.log('[getLeaderboardWindowAction] result:', {
+      topCount: topRows.length,
+      windowCount: windowRows.length,
+      rank: userRank,
+      total
     });
 
     return {

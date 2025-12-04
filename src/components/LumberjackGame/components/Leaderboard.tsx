@@ -15,10 +15,11 @@ interface LeaderboardProps {
   isGameOver: boolean;
   currentScore: number;
   scoreSubmitted?: boolean;
+  optimisticScore?: { score: number; username: string } | null;
   multiplier?: number | string;
 }
 
-export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted, multiplier = 1 }: LeaderboardProps) {
+export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted, optimisticScore, multiplier = 1 }: LeaderboardProps) {
   const [mounted, setMounted] = useState(false);
   const [showMultiplierInfo, setShowMultiplierInfo] = useState(false);
   const { getLeaderboardWindow, user } = useTelegram();
@@ -27,6 +28,7 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted,
   const [serverWindow, setServerWindow] = useState<Entry[]>([]);
   const [serverTotal, setServerTotal] = useState<number | null>(null);
   const [serverRank, setServerRank] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
@@ -46,6 +48,7 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted,
     if (isGameOver && typeof scoreSubmitted !== 'undefined' && !scoreSubmitted) return;
 
     let cancelled = false;
+    setIsLoading(true);
     (async () => {
       try {
         const data = await getLeaderboardWindow('lumberjack', user?.id ? String(user.id) : undefined, 5, 5, 5);
@@ -93,6 +96,8 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted,
         }
       } catch (e) {
         console.warn('Failed to fetch leaderboard-window from server', e);
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -101,13 +106,53 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted,
   if (!mounted) return null;
   if (!visible) return null;
 
-  const top = serverTop.slice(0, 5);
-
+  // Merge optimistic score into leaderboard for instant feedback
+  let top = serverTop.slice(0, 5);
   const currentUserId = user?.id ? String(user.id) : undefined;
-  const shouldShowYou = typeof serverRank === 'number' && serverRank > top.length;
+  let optimisticRank: number | undefined;
+  
+  if (optimisticScore && currentUserId) {
+    // Create optimistic entry
+    const optimisticEntry: Entry = {
+      name: optimisticScore.username,
+      score: optimisticScore.score,
+      userId: currentUserId,
+    };
+    
+    // Remove existing user entry if present
+    const filteredTop = top.filter(e => !e.userId || String(e.userId) !== currentUserId);
+    
+    // Create full sorted list to determine actual rank
+    const fullList = [...filteredTop, optimisticEntry].sort((a, b) => b.score - a.score);
+    
+    // Find where the optimistic score ranks
+    const rankIndex = fullList.findIndex(e => e.userId === currentUserId);
+    optimisticRank = rankIndex + 1;
+    
+    // Only show in top 5 if it actually makes it
+    top = fullList.slice(0, 5);
+  }
+
+  // Show "You" row if: 
+  // 1. Server says you're outside top 5, OR
+  // 2. Optimistic score exists but didn't make top 5
+  const shouldShowYou = (typeof serverRank === 'number' && serverRank > top.length && !optimisticScore) ||
+                        (optimisticScore && optimisticRank && optimisticRank > 5);
+  
   let youEntry: Entry | undefined;
-  if (shouldShowYou && serverWindow.length > 0) {
-    youEntry = serverWindow.find((r) => typeof r.rn === 'number' ? r.rn === serverRank : (r.userId && currentUserId ? String(r.userId) === currentUserId : false));
+  if (shouldShowYou) {
+    if (optimisticScore && optimisticRank && optimisticRank > 5) {
+      // Use optimistic data for "You" row
+      youEntry = {
+        name: optimisticScore.username,
+        score: optimisticScore.score,
+        userId: currentUserId,
+        rn: optimisticRank,
+      };
+    } else if (serverWindow.length > 0) {
+      // Use server data for "You" row
+      youEntry = serverWindow.find((r) => typeof r.rn === 'number' ? r.rn === serverRank : (r.userId && currentUserId ? String(r.userId) === currentUserId : false));
+    }
   }
 
   // If server indicates the player is outside top, but the returned window didn't include them,
@@ -167,7 +212,24 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted,
         {/* name input removed as requested */}
 
         <div className="space-y-2">
-          {top.length === 0 && <div className="text-sm text-white/70 font-clash">No scores yet — be the first!</div>}
+          {/* Show spinner when loading for the first time (no data yet) */}
+          {isLoading && top.length === 0 && (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          )}
+          
+          {/* Show "no scores" only when done loading and truly empty */}
+          {!isLoading && top.length === 0 && <div className="text-sm text-white/70 font-clash">No scores yet — be the first!</div>}
+          
+          {/* Show subtle loading indicator when updating with existing data */}
+          {isLoading && top.length > 0 && (
+            <div className="flex items-center justify-center py-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary/50"></div>
+              <span className="ml-2 text-xs text-white/50">Updating...</span>
+            </div>
+          )}
+          
             {top.map((e, i) => {
               const pos = i + 1;
               const posColor = pos === 1 ? '#FFD700' : pos === 2 ? '#C0C0C0' : pos === 3 ? '#CD7F32' : 'var(--color-primary)';
