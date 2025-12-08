@@ -86,7 +86,7 @@ export async function getLeaderboardWindowAction(gameId: string, userId?: string
         rn,
         total
       FROM ranked_scores
-      WHERE rn <= $3
+      WHERE rn <= $2
       ORDER BY rn
       `}
     `;

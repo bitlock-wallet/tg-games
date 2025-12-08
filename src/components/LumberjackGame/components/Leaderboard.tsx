@@ -64,33 +64,33 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted,
 
           if (Array.isArray(data.top)) setServerTop(data.top.map(mapRow));
           if (Array.isArray(data.window)) setServerWindow(data.window.map(mapRow));
-                    // If the server says the player is outside top and the returned `window`
-                    // does not include the player's row, fetch a tight window (before=0, after=0)
-                    // to retrieve just the user's row so we can render it as the 6th row.
-                    try {
-                      const curUserId = user?.id ? String(user.id) : undefined;
-                      const topLen = Array.isArray(data.top) ? data.top.length : 0;
-                      const rankNum = data.rank !== undefined && data.rank !== null && !Number.isNaN(Number(data.rank)) ? Number(data.rank) : undefined;
-                      if (typeof rankNum === 'number' && rankNum > topLen && curUserId) {
-                        const containsUser = (Array.isArray(data.window) && data.window.some((r: any) => String(r.user_id) === curUserId));
-                        if (!containsUser) {
-                          const tight = await getLeaderboardWindow('lumberjack', curUserId, 5, 0, 0);
-                          if (tight && Array.isArray(tight.window) && tight.window.length > 0) {
-                            // Append the tight row (avoid duplicates)
-                            setServerWindow((prev) => {
-                              const ids = new Set(prev.map((r) => String(r.userId)));
-                              const newRows = tight.window
-                                .map((r: any) => mapRow(r))
-                                .filter((r: Entry) => !ids.has(r.userId || ''));
-                              return [...prev, ...newRows];
-                            });
-                          }
-                        }
-                      }
-                    } catch (err) {
-                      // ignore tight fetch errors
-                      console.warn('[Leaderboard] failed to fetch tight user row', err);
-                    }
+          // If the server says the player is outside top and the returned `window`
+          // does not include the player's row, fetch a tight window (before=0, after=0)
+          // to retrieve just the user's row so we can render it as the 6th row.
+          try {
+            const curUserId = user?.id ? String(user.id) : undefined;
+            const topLen = Array.isArray(data.top) ? data.top.length : 0;
+            const rankNum = data.rank !== undefined && data.rank !== null && !Number.isNaN(Number(data.rank)) ? Number(data.rank) : undefined;
+            if (typeof rankNum === 'number' && rankNum > topLen && curUserId) {
+              const containsUser = (Array.isArray(data.window) && data.window.some((r: any) => String(r.user_id) === curUserId));
+              if (!containsUser) {
+                const tight = await getLeaderboardWindow('lumberjack', curUserId, 5, 0, 0);
+                if (tight && Array.isArray(tight.window) && tight.window.length > 0) {
+                  // Append the tight row (avoid duplicates)
+                  setServerWindow((prev) => {
+                    const ids = new Set(prev.map((r) => String(r.userId)));
+                    const newRows = tight.window
+                      .map((r: any) => mapRow(r))
+                      .filter((r: Entry) => !ids.has(r.userId || ''));
+                    return [...prev, ...newRows];
+                  });
+                }
+              }
+            }
+          } catch (err) {
+            // ignore tight fetch errors
+            console.warn('[Leaderboard] failed to fetch tight user row', err);
+          }
           if (data.total !== undefined && data.total !== null && !Number.isNaN(Number(data.total))) setServerTotal(Number(data.total));
           if (data.rank !== undefined && data.rank !== null && !Number.isNaN(Number(data.rank))) setServerRank(Number(data.rank));
         }
@@ -110,7 +110,7 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted,
   let top = serverTop.slice(0, 5);
   const currentUserId = user?.id ? String(user.id) : undefined;
   let optimisticRank: number | undefined;
-  
+
   if (optimisticScore && currentUserId) {
     // Create optimistic entry
     const optimisticEntry: Entry = {
@@ -118,17 +118,17 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted,
       score: optimisticScore.score,
       userId: currentUserId,
     };
-    
+
     // Remove existing user entry if present
     const filteredTop = top.filter(e => !e.userId || String(e.userId) !== currentUserId);
-    
+
     // Create full sorted list to determine actual rank
     const fullList = [...filteredTop, optimisticEntry].sort((a, b) => b.score - a.score);
-    
+
     // Find where the optimistic score ranks
     const rankIndex = fullList.findIndex(e => e.userId === currentUserId);
     optimisticRank = rankIndex + 1;
-    
+
     // Only show in top 5 if it actually makes it
     top = fullList.slice(0, 5);
   }
@@ -137,8 +137,8 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted,
   // 1. Server says you're outside top 5, OR
   // 2. Optimistic score exists but didn't make top 5
   const shouldShowYou = (typeof serverRank === 'number' && serverRank > top.length && !optimisticScore) ||
-                        (optimisticScore && optimisticRank && optimisticRank > 5);
-  
+    (optimisticScore && optimisticRank && optimisticRank > 5);
+
   let youEntry: Entry | undefined;
   if (shouldShowYou) {
     if (optimisticScore && optimisticRank && optimisticRank > 5) {
@@ -218,10 +218,10 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted,
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
           )}
-          
+
           {/* Show "no scores" only when done loading and truly empty */}
           {!isLoading && top.length === 0 && <div className="text-sm text-white/70 font-clash">No scores yet — be the first!</div>}
-          
+
           {/* Show subtle loading indicator when updating with existing data */}
           {isLoading && top.length > 0 && (
             <div className="flex items-center justify-center py-2">
@@ -229,57 +229,57 @@ export function Leaderboard({ visible, isGameOver, currentScore, scoreSubmitted,
               <span className="ml-2 text-xs text-white/50">Updating...</span>
             </div>
           )}
-          
-            {top.map((e, i) => {
-              const pos = i + 1;
-              const posColor = pos === 1 ? '#FFD700' : pos === 2 ? '#C0C0C0' : pos === 3 ? '#CD7F32' : 'var(--color-primary)';
-              const isCurrent = (currentUserId && e.userId && String(e.userId) === currentUserId);
-              return (
-                <div
-                  key={i}
-                  className="flex items-center justify-between w-full h-[34px] rounded-[12px] opacity-100 border-b border-white/10 p-[6px] bg-[color:var(--color-black-2)]"
-                  style={{ transform: 'rotate(0deg)', background: isCurrent ? 'color-mix(in srgb, var(--color-black-2) 85%, white 15%)' : undefined }}
-                >
-                  <div className="flex items-center font-clash font-medium text-sm truncate pl-[10px] py-[10px]">
-                    <div style={{ width: '20px', textAlign: 'center', marginRight: '8px', fontWeight: 700, color: posColor }}>{pos}</div>
-                    <div className="truncate font-clash">{e.name}</div>
-                  </div>
 
-                  <div className="ml-4 flex items-center justify-center gap-1 px-2 rounded-md bg-primary" style={{ width: 60, height: 20 }}>
-                    <span className="text-primary-foreground font-bold" style={{ fontSize: '0.875rem' }}>{e.score}</span>
-                    <img src="/images/tree/points-logo-black.svg" alt="points" style={{ width: 16, height: 16, display: 'block' }} />
-                  </div>
+          {top.map((e, i) => {
+            const pos = i + 1;
+            const posColor = pos === 1 ? '#FFD700' : pos === 2 ? '#C0C0C0' : pos === 3 ? '#CD7F32' : 'var(--color-primary)';
+            const isCurrent = (currentUserId && e.userId && String(e.userId) === currentUserId);
+            return (
+              <div
+                key={i}
+                className="flex items-center justify-between w-full h-[34px] rounded-[12px] opacity-100 border-b border-white/10 p-[6px] bg-[color:var(--color-black-2)]"
+                style={{ transform: 'rotate(0deg)', background: isCurrent ? 'color-mix(in srgb, var(--color-black-2) 85%, white 15%)' : undefined }}
+              >
+                <div className="flex items-center font-clash font-medium text-sm truncate pl-[10px] py-[10px]">
+                  <div style={{ width: '20px', textAlign: 'center', marginRight: '8px', fontWeight: 700, color: posColor }}>{pos}</div>
+                  <div className="truncate font-clash">{e.name}</div>
                 </div>
-              );
+
+                <div className="ml-4 flex items-center justify-center gap-1 px-2 rounded-md bg-primary" style={{ width: 60, height: 20 }}>
+                  <span className="text-primary-foreground font-bold" style={{ fontSize: '0.875rem' }}>{e.score}</span>
+                  <img src="/images/tree/axe-points.svg" alt="points" style={{ width: 16, height: 16, display: 'block' }} />
+                </div>
+              </div>
+            );
           })}
 
           {/* show current player as single 6th row when they're not in top-5 */}
           {youEntry && (
             <div className="mt-1">
               {(() => {
-                  const e = youEntry as Entry;
-                  const pos = typeof e.rn === 'number' ? e.rn : 0;
-                  const posColor = pos === 1 ? '#FFD700' : pos === 2 ? '#C0C0C0' : pos === 3 ? '#CD7F32' : 'var(--color-primary)';
-                  const isCurrent = (currentUserId && e.userId && String(e.userId) === currentUserId);
-                  return (
-                    <div
-                      key={`you-${pos}-${e.name}-${e.score}`}
-                      className="flex items-center justify-between w-full h-[34px] rounded-[12px] opacity-100 border-b border-white/10 p-[6px] bg-[color:var(--color-black-2)]"
-                      style={{ transform: 'rotate(0deg)', background: isCurrent ? 'color-mix(in srgb, var(--color-black-2) 85%, white 15%)' : undefined }}
-                    >
-                      <div className="flex items-center font-clash font-medium text-sm truncate pl-[10px] py-[10px]">
-                        <div style={{ width: '20px', textAlign: 'center', marginRight: '8px', fontWeight: 700, color: posColor }}>{pos}</div>
-                        <div className="truncate">{e.name}</div>
-                      </div>
-
-                      <div className="ml-4 flex items-center justify-center gap-1 px-2 rounded-md bg-primary" style={{ width: 60, height: 20 }}>
-                        <span className="text-primary-foreground font-bold" style={{ fontSize: '0.875rem' }}>{e.score}</span>
-                        <img src="/images/tree/points-logo-black.svg" alt="points" style={{ width: 16, height: 16, display: 'block' }} />
-                      </div>
+                const e = youEntry as Entry;
+                const pos = typeof e.rn === 'number' ? e.rn : 0;
+                const posColor = pos === 1 ? '#FFD700' : pos === 2 ? '#C0C0C0' : pos === 3 ? '#CD7F32' : 'var(--color-primary)';
+                const isCurrent = (currentUserId && e.userId && String(e.userId) === currentUserId);
+                return (
+                  <div
+                    key={`you-${pos}-${e.name}-${e.score}`}
+                    className="flex items-center justify-between w-full h-[34px] rounded-[12px] opacity-100 border-b border-white/10 p-[6px] bg-[color:var(--color-black-2)]"
+                    style={{ transform: 'rotate(0deg)', background: isCurrent ? 'color-mix(in srgb, var(--color-black-2) 85%, white 15%)' : undefined }}
+                  >
+                    <div className="flex items-center font-clash font-medium text-sm truncate pl-[10px] py-[10px]">
+                      <div style={{ width: '20px', textAlign: 'center', marginRight: '8px', fontWeight: 700, color: posColor }}>{pos}</div>
+                      <div className="truncate">{e.name}</div>
                     </div>
-                  );
-                })()}
-              </div>
+
+                    <div className="ml-4 flex items-center justify-center gap-1 px-2 rounded-md bg-primary" style={{ width: 60, height: 20 }}>
+                      <span className="text-primary-foreground font-bold" style={{ fontSize: '0.875rem' }}>{e.score}</span>
+                      <img src="/images/tree/axe-points.svg" alt="points" style={{ width: 16, height: 16, display: 'block' }} />
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
           )}
         </div>
 

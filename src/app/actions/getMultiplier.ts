@@ -5,32 +5,42 @@ type MultiplierResult = {
   multiplier: number;
 };
 
+type VolumeApiResponse = {
+  telegramId: string;
+  volumeUsd: string;
+  period: string;
+};
+
 export async function getMultiplierAction(userId?: string | null, username?: string | null): Promise<MultiplierResult> {
-  // Determine external API URL from env. If not set, return default multiplier=1
-  const apiUrl = process.env.SWAP_VOLUME_API_URL ?? process.env.NEXT_PUBLIC_SWAP_VOLUME_API_URL ?? null;
+  // Use the new BitLock API endpoint
+  const telegramId = userId ?? username;
   let volume = 0;
-  if (!apiUrl) {
-    console.log('[getMultiplierAction] SWAP_VOLUME_API_URL not configured; returning multiplier=1');
+
+  if (!telegramId) {
+    console.log('[getMultiplierAction] No telegramId provided; returning multiplier=1');
     return { volume, multiplier: 1 };
   }
 
   try {
-    const url = new URL(apiUrl);
-    if (userId) url.searchParams.set('user_id', String(userId));
-    if (username) url.searchParams.set('username', String(username));
-    console.log('[getMultiplierAction] calling external API', url.toString());
-    const res = await fetch(url.toString(), { method: 'GET' });
+    const apiUrl = `https://api.bitlock.ai/api/telegram/volume/${telegramId}`;
+    console.log('[getMultiplierAction] calling BitLock API', apiUrl);
+
+    const res = await fetch(apiUrl, { method: 'GET' });
     if (!res.ok) {
-      console.warn('[getMultiplierAction] external API returned non-ok', res.status, res.statusText);
+      console.warn('[getMultiplierAction] BitLock API returned non-ok', res.status, res.statusText);
       return { volume: 0, multiplier: 1 };
     }
-    const json = await res.json();
-    // Expecting the external API to return { volume: number }
-    if (json && typeof json.volume === 'number') volume = json.volume;
-    console.log('[getMultiplierAction] external API returned', { volume });
+
+    const json: VolumeApiResponse = await res.json();
+    // Parse volumeUsd from the response (it's a string)
+    if (json && typeof json.volumeUsd === 'string') {
+      volume = parseFloat(json.volumeUsd);
+      if (isNaN(volume)) volume = 0;
+    }
+    console.log('[getMultiplierAction] BitLock API returned', { telegramId: json.telegramId, volumeUsd: json.volumeUsd, volume, period: json.period });
   } catch (e) {
     // If fetch fails, default to 0 volume
-    console.warn('[getMultiplierAction] external API fetch failed', e);
+    console.warn('[getMultiplierAction] BitLock API fetch failed', e);
     volume = 0;
   }
 
@@ -40,7 +50,6 @@ export async function getMultiplierAction(userId?: string | null, username?: str
   else if (volume > 30000) multiplier = 4;
   else if (volume > 20000) multiplier = 3;
   else if (volume > 10000) multiplier = 2;
-  else multiplier = 1;
 
   return { volume, multiplier };
 }
